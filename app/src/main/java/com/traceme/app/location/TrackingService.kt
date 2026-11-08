@@ -91,7 +91,9 @@ class TrackingService : Service() {
                 return START_NOT_STICKY
             }
             ACTION_SAFE -> resolveSafe()
-            ACTION_QUIET -> startQuiet(intent.getIntExtra(EXTRA_MINUTES, settings.quietMinutes))
+            ACTION_QUIET -> startQuiet(
+                intent?.getIntExtra(EXTRA_MINUTES, settings.quietMinutes) ?: settings.quietMinutes
+            )
             ACTION_HELP -> escalate("You asked for help")
         }
 
