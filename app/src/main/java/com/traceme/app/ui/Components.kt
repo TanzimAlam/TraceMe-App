@@ -115,11 +115,11 @@ fun SectionLabel(text: String) {
 fun ActionButton(
     text: String,
     icon: ImageVector,
-    onClick: () -> Unit,
     modifier: Modifier = Modifier,
     container: Color = Berry,
     contentColor: Color = Color.White,
-    enabled: Boolean = true
+    enabled: Boolean = true,
+    onClick: () -> Unit
 ) {
     Button(
         onClick = onClick,
@@ -145,9 +145,9 @@ fun ActionButton(
 fun QuietButton(
     text: String,
     icon: ImageVector,
-    onClick: () -> Unit,
     modifier: Modifier = Modifier,
-    enabled: Boolean = true
+    enabled: Boolean = true,
+    onClick: () -> Unit
 ) {
     OutlinedButton(
         onClick = onClick,

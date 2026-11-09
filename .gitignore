@@ -13,3 +13,6 @@
 *.keystore
 *.jks
 .freebuff/
+
+# Local build toolchain (JDK + Android SDK downloaded for command-line builds)
+.toolchain/
