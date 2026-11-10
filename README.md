@@ -71,9 +71,17 @@ you) and is git-ignored; point `sdk.dir` at your SDK.
 
 ## Optional: enable "Continue with Google"
 
-Google sign-in uses Android Credential Manager with an ID token, so it needs one free OAuth
-client **created under your own Google account** — that step cannot be done by anyone else,
-and it is the only reason the button is not live in a fresh build.
+Google sign-in uses Android Credential Manager with an ID token. This build already carries a
+free OAuth **Web** client created in the `Overwatch` Google Cloud project, so the button works
+without any setup. Two things to know:
+
+- The consent screen is in **Testing** mode, so only accounts listed as *test users* can sign
+  in. Add them under **Google Auth Platform → Audience**, or publish the app.
+- An **Android** OAuth client (`com.traceme.app` + the debug SHA-1) is registered too, which is
+  what lets Google trust this particular build.
+
+To point the app at your own Cloud project instead, create the clients as below and either set
+`GOOGLE_WEB_CLIENT_ID` in `local.properties` or change the default in `app/build.gradle.kts`.
 
 1. Go to [Google Cloud Console](https://console.cloud.google.com/) → create a project
    (free, no billing needed).

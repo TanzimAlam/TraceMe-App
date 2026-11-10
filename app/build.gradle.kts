@@ -12,7 +12,11 @@ val localProperties = Properties().apply {
     val file = rootProject.file("local.properties")
     if (file.exists()) file.inputStream().use { load(it) }
 }
-val googleWebClientId: String = localProperties.getProperty("GOOGLE_WEB_CLIENT_ID") ?: ""
+// Default client from the project's own Google Cloud project ("Overwatch"). A Web
+// client ID is a public identifier and ships inside the APK anyway; override it in
+// local.properties to point at a different Cloud project.
+val googleWebClientId: String = localProperties.getProperty("GOOGLE_WEB_CLIENT_ID")
+    ?: "398828360758-5bagf3jfcvlss1djdbsi9m44n2atam8h.apps.googleusercontent.com"
 
 android {
     namespace = "com.traceme.app"
