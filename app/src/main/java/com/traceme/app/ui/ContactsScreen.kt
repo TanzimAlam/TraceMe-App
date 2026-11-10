@@ -88,7 +88,7 @@ fun ContactsScreen() {
         }
 
         if (contacts.isEmpty()) {
-            SoftCard(container = Sand) {
+            SoftCard(container = Sky) {
                 Text(
                     "No contacts yet. Add at least one person who would come looking for you.",
                     style = MaterialTheme.typography.bodyMedium,

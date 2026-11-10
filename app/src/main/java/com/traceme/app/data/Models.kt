@@ -46,3 +46,19 @@ data class NearbyHelp(
     val police: List<Place> = emptyList(),
     val hospitals: List<Place> = emptyList()
 )
+
+/** A point on the map: the walk's start or where the user is headed. */
+data class Waypoint(
+    val latitude: Double,
+    val longitude: Double,
+    val label: String = ""
+) {
+    fun coords(): String = "%.5f, %.5f".format(latitude, longitude)
+    fun pretty(): String = label.ifBlank { coords() }
+}
+
+/** The planned route for tonight's walk. */
+data class Trip(
+    val start: Waypoint? = null,
+    val destination: Waypoint? = null
+)

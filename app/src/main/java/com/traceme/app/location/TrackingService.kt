@@ -404,7 +404,7 @@ class TrackingService : Service() {
 
         return NotificationCompat.Builder(this, Notifier.CH_WATCH)
             .setSmallIcon(R.drawable.ic_stat_shield)
-            .setContentTitle("TraceMe · night watch")
+            .setContentTitle("Overwatch · night watch")
             .setContentText(text)
             .setOngoing(state != WatchState.IDLE)
             .setOnlyAlertOnce(true)

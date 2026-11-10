@@ -102,7 +102,7 @@ object EmergencyDispatcher {
     ): String {
         val time = SimpleDateFormat("dd MMM, HH:mm", Locale.getDefault()).format(Date())
         val text = StringBuilder()
-        text.append("TRACEME SOS ALERT\n")
+        text.append("OVERWATCH SOS ALERT\n")
         text.append("$name stopped moving and did not answer the safety check.\n")
         text.append("Reason: $reason\n")
         text.append("Time: $time\n")

@@ -30,7 +30,7 @@ object Notifier {
 
         manager.createNotificationChannel(
             NotificationChannel(CH_WATCH, "Night watch", NotificationManager.IMPORTANCE_LOW).apply {
-                description = "Persistent status while TraceMe watches your location."
+                description = "Persistent status while Overwatch watches your location."
                 setShowBadge(false)
             }
         )

@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">TraceMe</string>
+    <string name="app_name">Overwatch</string>
     <string name="channel_watch">Night watch</string>
     <string name="channel_checkin">Check-in alerts</string>
     <string name="channel_sos">Emergency SOS</string>

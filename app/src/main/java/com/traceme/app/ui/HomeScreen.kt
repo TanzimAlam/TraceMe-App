@@ -1,5 +1,7 @@
 package com.traceme.app.ui
 
+import android.content.Intent
+import android.provider.Settings
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -23,6 +25,7 @@ import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.LocalPolice
 import androidx.compose.material.icons.rounded.PauseCircle
 import androidx.compose.material.icons.rounded.People
+import androidx.compose.material.icons.rounded.Place
 import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.Stop
 import androidx.compose.material3.AlertDialog
@@ -52,6 +55,7 @@ import com.traceme.app.data.Repo
 import com.traceme.app.data.WatchState
 import com.traceme.app.emergency.EmergencyDispatcher
 import com.traceme.app.emergency.NearbyServices
+import com.traceme.app.location.SpotLocation
 import com.traceme.app.location.TrackingService
 import com.traceme.app.util.Perms
 import kotlinx.coroutines.delay
@@ -60,7 +64,8 @@ import kotlinx.coroutines.launch
 @Composable
 fun HomeScreen(
     onOpenContacts: () -> Unit,
-    onOpenActivity: () -> Unit
+    onOpenActivity: () -> Unit,
+    onOpenMap: () -> Unit
 ) {
     val context = LocalContext.current
     val repo = remember { Repo.get(context) }
@@ -73,11 +78,66 @@ fun HomeScreen(
     var quietChoice by remember { mutableStateOf(30) }
     var nearby by remember { mutableStateOf<NearbyHelp?>(null) }
     var nearbyBusy by remember { mutableStateOf(false) }
+    var nearbyFailed by remember { mutableStateOf(false) }
+    var locationOff by remember { mutableStateOf(false) }
+    var startAfterPermission by remember { mutableStateOf(false) }
 
     val permissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
     ) { granted ->
-        if (granted.values.any { it }) TrackingService.start(context)
+        if (granted.values.any { it }) {
+            if (startAfterPermission) {
+                startAfterPermission = false
+                TrackingService.start(context)
+            }
+        } else {
+            Toast.makeText(context, "Location permission is needed for this.", Toast.LENGTH_LONG).show()
+        }
+    }
+
+    // Nearby Help used to demand an existing fix from the watch. Now it asks the
+    // phone for a one-off fix itself, so it works even before a watch is started.
+    fun findNearbyHelp() {
+        scope.launch {
+                nearbyBusy = true
+                nearbyFailed = false
+                val snapshot = TrackingService.snapshot()
+                var latitude = snapshot.latitude
+                var longitude = snapshot.longitude
+                if (!snapshot.hasFix) {
+                    val spot = SpotLocation.current(context)
+                    locationOff = spot.locationOff
+                    spot.location?.let {
+                        latitude = it.latitude
+                        longitude = it.longitude
+                    }
+                    if (spot.location == null) {
+                        nearbyBusy = false
+                        if (!spot.locationOff) {
+                            Toast.makeText(
+                                context,
+                                "No GPS fix yet. Step outside or near a window and try again.",
+                                Toast.LENGTH_LONG
+                            ).show()
+                        }
+                        return@launch
+                    }
+                }
+                val help = NearbyServices.find(latitude, longitude)
+                nearby = help
+                nearbyFailed = help.police.isEmpty() && help.hospitals.isEmpty()
+                nearbyBusy = false
+        }
+    }
+
+    fun startWatchNow() {
+        if (Perms.hasLocation(context)) {
+            TrackingService.start(context)
+            Toast.makeText(context, "Night watch started", Toast.LENGTH_SHORT).show()
+        } else {
+            startAfterPermission = true
+            permissionLauncher.launch(Perms.location)
+        }
     }
 
     LaunchedEffect(Unit) {
@@ -92,6 +152,7 @@ fun HomeScreen(
     }
 
     val snapshot = remember(tick) { TrackingService.snapshot() }
+    val trip = remember(tick) { repo.loadTrip() }
     val account = repo.currentAccount()
     val watching = snapshot.running
     val progress = if (settings.stuckSeconds > 0) {
@@ -116,7 +177,7 @@ fun HomeScreen(
                     color = InkSoft
                 )
                 Text(
-                    "TraceMe",
+                    "Overwatch",
                     style = MaterialTheme.typography.headlineMedium,
                     fontWeight = FontWeight.Bold,
                     color = Ink
@@ -125,10 +186,10 @@ fun HomeScreen(
             Box(
                 modifier = Modifier
                     .size(44.dp)
-                    .background(Pink, CircleShape),
+                    .background(Peach, CircleShape),
                 contentAlignment = Alignment.Center
             ) {
-                Icon(Icons.Rounded.People, contentDescription = null, tint = Berry)
+                Icon(Icons.Rounded.People, contentDescription = null, tint = Clay)
             }
         }
 
@@ -137,9 +198,9 @@ fun HomeScreen(
             container = when {
                 snapshot.state == WatchState.SOS -> Color(0xFFF8DAD7)
                 snapshot.state == WatchState.PROMPTING -> Color(0xFFFBE8CF)
-                snapshot.state == WatchState.QUIET -> Sand
+                snapshot.state == WatchState.QUIET -> Sky
                 watching -> Color(0xFFE6F2EC)
-                else -> PinkSoft
+                else -> PeachSoft
             }
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -234,14 +295,7 @@ fun HomeScreen(
         }
 
         if (!watching) {
-            ActionButton("Start night watch", Icons.Rounded.PlayArrow) {
-                if (Perms.hasLocation(context)) {
-                    TrackingService.start(context)
-                    Toast.makeText(context, "Night watch started", Toast.LENGTH_SHORT).show()
-                } else {
-                    permissionLauncher.launch(Perms.location)
-                }
-            }
+            ActionButton("Start night watch", Icons.Rounded.PlayArrow) { startWatchNow() }
         } else {
             QuietButton(
                 "Pause checks for ${settings.quietMinutes} min",
@@ -255,12 +309,38 @@ fun HomeScreen(
             }
         }
 
+        QuietButton(
+            if (trip.destination != null) {
+                "Route · ${trip.destination?.pretty() ?: "destination set"}"
+            } else {
+                "Set destination & see yourself on the map"
+            },
+            Icons.Rounded.Place
+        ) { onOpenMap() }
+
         if (watching && !snapshot.hasFix) {
             Text(
                 "Waiting for a GPS fix. Stand outside or near a window for a moment.",
                 style = MaterialTheme.typography.bodySmall,
                 color = WarnAmber
             )
+        }
+
+        if (locationOff) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    "Location services are off on this phone.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = Danger,
+                    modifier = Modifier.weight(1f)
+                )
+                TextButton(onClick = {
+                    context.startActivity(
+                        Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS)
+                            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    )
+                }) { Text("Turn on") }
+            }
         }
 
         // ---- contacts ----
@@ -315,38 +395,50 @@ fun HomeScreen(
                 color = InkSoft
             )
             when {
-                nearbyBusy -> Text("Looking around you…", style = MaterialTheme.typography.bodyMedium, color = InkSoft)
+                nearbyBusy -> Text(
+                    "Finding your position and looking around you…",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = InkSoft
+                )
                 nearby == null -> QuietButton(
                     "Find police & hospitals",
                     Icons.Rounded.LocalPolice
                 ) {
-                    if (!snapshot.hasFix) {
-                        Toast.makeText(context, "Waiting for a GPS fix first.", Toast.LENGTH_SHORT).show()
+                    if (!Perms.hasLocation(context)) {
+                        startAfterPermission = false
+                        permissionLauncher.launch(Perms.location)
                     } else {
-                        nearbyBusy = true
-                        scope.launch {
-                            nearby = NearbyServices.find(snapshot.latitude, snapshot.longitude)
-                            nearbyBusy = false
-                        }
+                        findNearbyHelp()
                     }
                 }
                 else -> {
                     val help = nearby ?: NearbyHelp()
                     if (help.police.isEmpty() && help.hospitals.isEmpty()) {
                         Text(
-                            "No mapped stations nearby. Call ${settings.emergencyNumber} instead.",
+                            if (nearbyFailed) {
+                                "Couldn't reach the map service, or nothing is mapped nearby. Call ${settings.emergencyNumber} instead."
+                            } else {
+                                "No mapped stations nearby. Call ${settings.emergencyNumber} instead."
+                            },
                             style = MaterialTheme.typography.bodyMedium,
                             color = Ink
                         )
+                        TextButton(onClick = { nearby = null; nearbyFailed = false }) { Text("Try again") }
+                    } else {
+                        help.police.forEach { place ->
+                            PlaceRow(place, "Police") { EmergencyDispatcher.dial(context, place.phone) }
+                        }
+                        help.hospitals.forEach { place ->
+                            PlaceRow(place, "Hospital") { EmergencyDispatcher.dial(context, place.phone) }
+                        }
+                        TextButton(onClick = { nearby = null; nearbyFailed = false }) { Text("Refresh") }
                     }
-                    help.police.forEach { place -> PlaceRow(place, "Police") { EmergencyDispatcher.dial(context, place.phone) } }
-                    help.hospitals.forEach { place -> PlaceRow(place, "Hospital") { EmergencyDispatcher.dial(context, place.phone) } }
                 }
             }
         }
 
         TextButton(onClick = onOpenActivity) {
-            Text("View activity log", color = Berry)
+            Text("View activity log", color = Clay)
         }
 
         Spacer(Modifier.width(8.dp))

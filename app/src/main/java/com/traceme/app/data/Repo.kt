@@ -245,6 +245,42 @@ class Repo private constructor(context: Context) {
         }
     }
 
+    // ---------- planned trip ----------
+
+    fun loadTrip(): Trip {
+        val raw = prefs.getString(KEY_TRIP, null) ?: return Trip()
+        return try {
+            val item = JSONObject(raw)
+            Trip(
+                start = readWaypoint(item.optJSONObject("start")),
+                destination = readWaypoint(item.optJSONObject("destination"))
+            )
+        } catch (e: Exception) {
+            Trip()
+        }
+    }
+
+    fun saveTrip(trip: Trip) {
+        val json = JSONObject()
+        trip.start?.let { json.put("start", waypointJson(it)) }
+        trip.destination?.let { json.put("destination", waypointJson(it)) }
+        prefs.edit().putString(KEY_TRIP, json.toString()).apply()
+    }
+
+    private fun waypointJson(point: Waypoint): JSONObject = JSONObject().apply {
+        put("latitude", point.latitude)
+        put("longitude", point.longitude)
+        put("label", point.label)
+    }
+
+    private fun readWaypoint(item: JSONObject?): Waypoint? {
+        if (item == null) return null
+        val lat = item.optDouble("latitude", Double.NaN)
+        val lon = item.optDouble("longitude", Double.NaN)
+        if (lat.isNaN() || lon.isNaN()) return null
+        return Waypoint(lat, lon, item.optString("label"))
+    }
+
     fun resetEverything() {
         prefs.edit().clear().apply()
     }
@@ -258,6 +294,7 @@ class Repo private constructor(context: Context) {
         private const val KEY_SETTINGS = "settings"
         private const val KEY_LOG = "log"
         private const val KEY_SOS = "lastSos"
+        private const val KEY_TRIP = "trip"
         private const val MAX_LOG = 150
 
         @Volatile

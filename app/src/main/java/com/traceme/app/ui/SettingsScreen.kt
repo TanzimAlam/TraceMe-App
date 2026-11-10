@@ -68,7 +68,7 @@ fun SettingsScreen(onSignedOut: () -> Unit) {
         )
 
         SoftCard {
-            Text(account?.name ?: "TraceMe user", style = MaterialTheme.typography.titleMedium, color = Ink)
+            Text(account?.name ?: "Overwatch user", style = MaterialTheme.typography.titleMedium, color = Ink)
             Text(account?.email ?: "", style = MaterialTheme.typography.bodySmall, color = InkSoft)
             StatusPill(
                 text = if (account?.provider == "google") "Google account" else "Local account",
@@ -110,7 +110,7 @@ fun SettingsScreen(onSignedOut: () -> Unit) {
             TextButton(onClick = {
                 refresh++
                 openAppSettings(context)
-            }) { Text("Open Android settings", color = Berry) }
+            }) { Text("Open Android settings", color = Clay) }
         }
 
         SoftCard {
@@ -118,7 +118,7 @@ fun SettingsScreen(onSignedOut: () -> Unit) {
                 TrackingService.stop(context)
                 AuthRepo.signOut(repo)
                 onSignedOut()
-            }) { Text("Sign out", color = Berry) }
+            }) { Text("Sign out", color = Clay) }
 
             TextButton(onClick = {
                 TrackingService.stop(context)
@@ -134,7 +134,7 @@ fun SettingsScreen(onSignedOut: () -> Unit) {
         }
 
         Text(
-            "TraceMe · night walk safety · palette from Color Hunt",
+            "Overwatch · night walk safety · palette from Color Hunt",
             style = MaterialTheme.typography.bodySmall,
             color = InkFaint
         )

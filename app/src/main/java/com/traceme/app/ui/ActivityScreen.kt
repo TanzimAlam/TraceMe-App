@@ -55,7 +55,7 @@ fun ActivityScreen() {
             TextButton(onClick = {
                 repo.clearLog()
                 entries = repo.loadLog()
-            }) { Text("Clear", color = Berry) }
+            }) { Text("Clear", color = Clay) }
         }
 
         if (entries.isEmpty()) {

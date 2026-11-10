@@ -116,7 +116,7 @@ fun ActionButton(
     text: String,
     icon: ImageVector,
     modifier: Modifier = Modifier,
-    container: Color = Berry,
+    container: Color = Clay,
     contentColor: Color = Color.White,
     enabled: Boolean = true,
     onClick: () -> Unit
@@ -169,7 +169,7 @@ fun StillnessGauge(
     centerTitle: String,
     centerSubtitle: String,
     progressColor: Color,
-    trackColor: Color = Pink,
+    trackColor: Color = Peach,
     diameter: Dp = 190.dp
 ) {
     Box(modifier = Modifier.size(diameter), contentAlignment = Alignment.Center) {

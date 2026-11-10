@@ -40,7 +40,7 @@ import com.traceme.app.ui.Cream
 import com.traceme.app.ui.Danger
 import com.traceme.app.ui.Ink
 import com.traceme.app.ui.InkSoft
-import com.traceme.app.ui.Pink
+import com.traceme.app.ui.Peach
 import com.traceme.app.ui.QuietButton
 import com.traceme.app.ui.SafeGreen
 import com.traceme.app.ui.StillnessGauge
@@ -89,7 +89,7 @@ class CheckInActivity : ComponentActivity() {
                 Column(
                     modifier = Modifier
                         .fillMaxSize()
-                        .background(Brush.verticalGradient(listOf(Pink, Cream)))
+                        .background(Brush.verticalGradient(listOf(Peach, Cream)))
                         .verticalScroll(rememberScrollState())
                         .padding(24.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
@@ -113,7 +113,7 @@ class CheckInActivity : ComponentActivity() {
                     )
                     Text(
                         "Your phone hasn't moved for ${settings.stuckSeconds / 60} minutes. " +
-                            "If you don't answer, TraceMe texts your contacts and calls " +
+                            "If you don't answer, Overwatch texts your contacts and calls " +
                             "${settings.emergencyNumber}.",
                         style = MaterialTheme.typography.bodyMedium,
                         color = InkSoft,

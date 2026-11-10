@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Explore
 import androidx.compose.material.icons.rounded.History
 import androidx.compose.material.icons.rounded.People
 import androidx.compose.material.icons.rounded.Settings
@@ -30,12 +31,13 @@ import com.traceme.app.ui.AuthScreen
 import com.traceme.app.ui.ContactsScreen
 import com.traceme.app.ui.Cream
 import com.traceme.app.ui.HomeScreen
+import com.traceme.app.ui.MapScreen
 import com.traceme.app.ui.OnboardingScreen
-import com.traceme.app.ui.PinkSoft
+import com.traceme.app.ui.PeachSoft
 import com.traceme.app.ui.SettingsScreen
 import com.traceme.app.ui.TraceMeTheme
 
-enum class Route { AUTH, ONBOARDING, HOME, CONTACTS, ACTIVITY, SETTINGS }
+enum class Route { AUTH, ONBOARDING, HOME, MAP, CONTACTS, ACTIVITY, SETTINGS }
 
 class MainActivity : ComponentActivity() {
 
@@ -84,12 +86,18 @@ private fun AppShell(
     Scaffold(
         containerColor = Cream,
         bottomBar = {
-            NavigationBar(containerColor = PinkSoft) {
+            NavigationBar(containerColor = PeachSoft) {
                 NavigationBarItem(
                     selected = route == Route.HOME,
                     onClick = { onNavigate(Route.HOME) },
                     icon = { Icon(Icons.Rounded.Shield, contentDescription = null) },
                     label = { Text("Watch") }
+                )
+                NavigationBarItem(
+                    selected = route == Route.MAP,
+                    onClick = { onNavigate(Route.MAP) },
+                    icon = { Icon(Icons.Rounded.Explore, contentDescription = null) },
+                    label = { Text("Route") }
                 )
                 NavigationBarItem(
                     selected = route == Route.CONTACTS,
@@ -120,8 +128,10 @@ private fun AppShell(
             when (route) {
                 Route.HOME -> HomeScreen(
                     onOpenContacts = { onNavigate(Route.CONTACTS) },
-                    onOpenActivity = { onNavigate(Route.ACTIVITY) }
+                    onOpenActivity = { onNavigate(Route.ACTIVITY) },
+                    onOpenMap = { onNavigate(Route.MAP) }
                 )
+                Route.MAP -> MapScreen()
                 Route.CONTACTS -> ContactsScreen()
                 Route.ACTIVITY -> ActivityScreen()
                 Route.SETTINGS -> SettingsScreen(onSignedOut = onSignedOut)

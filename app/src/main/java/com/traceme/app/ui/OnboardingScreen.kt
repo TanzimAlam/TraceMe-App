@@ -109,7 +109,7 @@ fun OnboardingScreen(onFinished: () -> Unit) {
                 Box(
                     modifier = Modifier
                         .size(width = 34.dp, height = 5.dp)
-                        .background(if (index <= step) Berry else PinkSoft, CircleShape)
+                        .background(if (index <= step) Clay else PeachSoft, CircleShape)
                 )
             }
         }
@@ -117,7 +117,7 @@ fun OnboardingScreen(onFinished: () -> Unit) {
         when (step) {
             0 -> {
                 Text(
-                    "TraceMe needs these to keep you safe. You can change them later in Android settings.",
+                    "Overwatch needs these to keep you safe. You can change them later in Android settings.",
                     style = MaterialTheme.typography.bodyMedium,
                     color = InkSoft
                 )
@@ -200,7 +200,7 @@ fun OnboardingScreen(onFinished: () -> Unit) {
                     }
                 }
                 if (contacts.isEmpty()) {
-                    SoftCard(container = Sand) {
+                    SoftCard(container = Sky) {
                         Text(
                             "Add at least one person. A friend, a parent, a roommate — someone who would come looking.",
                             style = MaterialTheme.typography.bodyMedium,
@@ -226,9 +226,9 @@ fun OnboardingScreen(onFinished: () -> Unit) {
             else -> {
                 EmergencyNumberSection(settings, onChange = { settings = it })
                 TimingSection(settings, onChange = { settings = it })
-                SoftCard(container = Pink) {
+                SoftCard(container = Peach) {
                     Text(
-                        "TraceMe will ask “are you okay?” after ${settings.stuckSeconds / 60} min without movement. " +
+                        "Overwatch will ask “are you okay?” after ${settings.stuckSeconds / 60} min without movement. " +
                             "If you don't answer in ${settings.responseSeconds} s, it texts your contacts and calls " +
                             "${settings.emergencyNumber}.",
                         style = MaterialTheme.typography.bodyMedium,
@@ -275,13 +275,13 @@ private fun PermissionRow(
         Box(
             modifier = Modifier
                 .size(40.dp)
-                .background(if (granted) Color(0xFFE1F0E9) else PinkSoft, CircleShape),
+                .background(if (granted) Color(0xFFE1F0E9) else PeachSoft, CircleShape),
             contentAlignment = Alignment.Center
         ) {
             Icon(
                 icon,
                 contentDescription = null,
-                tint = if (granted) SafeGreen else Berry,
+                tint = if (granted) SafeGreen else Clay,
                 modifier = Modifier.size(20.dp)
             )
         }

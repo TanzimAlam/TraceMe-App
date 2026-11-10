@@ -49,7 +49,7 @@ import com.traceme.app.ui.Cream
 import com.traceme.app.ui.Danger
 import com.traceme.app.ui.Ink
 import com.traceme.app.ui.InkSoft
-import com.traceme.app.ui.Pink
+import com.traceme.app.ui.Peach
 import com.traceme.app.ui.QuietButton
 import com.traceme.app.ui.SafeGreen
 import com.traceme.app.ui.SectionLabel
@@ -174,7 +174,7 @@ class SosActivity : ComponentActivity() {
                         ActionButton(
                             text = "Text all contacts again",
                             icon = Icons.Rounded.Sms,
-                            container = com.traceme.app.ui.Berry
+                            container = com.traceme.app.ui.Clay
                         ) {
                             val sent = EmergencyDispatcher.sendToContacts(context, contacts, message)
                             Toast.makeText(
@@ -197,9 +197,9 @@ class SosActivity : ComponentActivity() {
                                     )
                                 }
                                 TextButton(onClick = {
-                                    EmergencyDispatcher.messageIntent(contact, message, "TraceMe SOS")
+                                    EmergencyDispatcher.messageIntent(contact, message, "Overwatch SOS")
                                         ?.let { intent -> context.startActivity(intent) }
-                                }) { Text("Send", color = com.traceme.app.ui.Berry) }
+                                }) { Text("Send", color = com.traceme.app.ui.Clay) }
                                 TextButton(onClick = {
                                     EmergencyDispatcher.dial(context, contact.phone)
                                 }) { Text("Call", color = SafeGreen) }

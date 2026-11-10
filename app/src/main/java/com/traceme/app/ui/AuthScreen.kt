@@ -68,7 +68,7 @@ fun AuthScreen(onSignedIn: () -> Unit) {
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(Brush.verticalGradient(listOf(Pink, PinkSoft, Cream)))
+            .background(Brush.verticalGradient(listOf(Peach, PeachSoft, Cream)))
             .verticalScroll(rememberScrollState())
             .padding(horizontal = 22.dp, vertical = 34.dp),
         verticalArrangement = Arrangement.spacedBy(18.dp)
@@ -77,7 +77,7 @@ fun AuthScreen(onSignedIn: () -> Unit) {
             Box(
                 modifier = Modifier
                     .size(52.dp)
-                    .background(Berry, CircleShape),
+                    .background(Clay, CircleShape),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(Icons.Rounded.Shield, contentDescription = null, tint = Color.White)
@@ -85,7 +85,7 @@ fun AuthScreen(onSignedIn: () -> Unit) {
             Spacer(Modifier.width(12.dp))
             Column {
                 Text(
-                    "TraceMe",
+                    "Overwatch",
                     style = MaterialTheme.typography.headlineMedium,
                     fontWeight = FontWeight.Bold,
                     color = Ink
