@@ -109,6 +109,90 @@ public final class IconMaker {
             if (y < height - 1) push(queue, pixels, seen, index + width);
         }
 
+        // JPEG noise keeps some checkerboard patches attached to the edge, so the
+        // flood fill alone leaves crumbs. The badge is a circle: find it from the
+        // pixels that are definitely artwork, then clear everything outside it.
+        int minX = width, minY = height, maxX = -1, maxY = -1;
+        for (int y = 0; y < height; y++) {
+            for (int x = 0; x < width; x++) {
+                int argb = pixels[y * width + x];
+                if (((argb >>> 24) & 0xFF) > 12 && isArtwork(argb)) {
+                    minX = Math.min(minX, x);
+                    maxX = Math.max(maxX, x);
+                    minY = Math.min(minY, y);
+                    maxY = Math.max(maxY, y);
+                }
+            }
+        }
+        if (maxX > minX && maxY > minY) {
+            double centerX = (minX + maxX) / 2.0;
+            double centerY = (minY + maxY) / 2.0;
+
+            // Callipers: walk many rays outwards to the dark disc edge. The
+            // median radius describes the badge's circle exactly, which lets us
+            // ignore the grey checkerboard crumbs that survive the flood fill.
+            final int rays = 720;
+            double[] hits = new double[rays];
+            int hitCount = 0;
+            final double maxSearch = Math.hypot(width, height);
+            for (int a = 0; a < rays; a++) {
+                double angle = 2 * Math.PI * a / rays;
+                double dx = Math.cos(angle);
+                double dy = Math.sin(angle);
+                for (double t = maxSearch; t > 0; t -= 0.5) {
+                    int x = (int) Math.round(centerX + dx * t);
+                    int y = (int) Math.round(centerY + dy * t);
+                    if (x < 0 || y < 0 || x >= width || y >= height) continue;
+                    int argb = pixels[y * width + x];
+                    if (((argb >>> 24) & 0xFF) > 12 && isArtwork(argb)) {
+                        hits[hitCount++] = t;
+                        break;
+                    }
+                }
+            }
+            double radius = Math.min(width, height) / 2.0;
+            if (hitCount >= rays / 4) {
+                double[] sorted = Arrays.copyOf(hits, hitCount);
+                Arrays.sort(sorted);
+                radius = sorted[hitCount / 2] * 1.008; // the thin cream rim rides just outside
+            }
+
+            int masked = 0;
+            for (int y = 0; y < height; y++) {
+                for (int x = 0; x < width; x++) {
+                    int index = y * width + x;
+                    int argb = pixels[index];
+                    int alpha = (argb >>> 24) & 0xFF;
+                    if (alpha == 0) continue;
+                    double distance = Math.hypot(x + 0.5 - centerX, y + 0.5 - centerY);
+                    if (distance <= radius) continue;
+                    double feather = Math.min(1.0, distance - radius);
+                    int newAlpha = (int) Math.round(alpha * (1.0 - feather));
+                    pixels[index] = (newAlpha << 24) | (argb & 0x00FFFFFF);
+                    masked++;
+                }
+            }
+            // Dust-off: neutral grey crumbs that survive right at the rim. Only a
+            // thin band is touched, and the peach rim itself is never grey.
+            int crumbs = 0;
+            for (int y = 0; y < height; y++) {
+                for (int x = 0; x < width; x++) {
+                    int index = y * width + x;
+                    int argb = pixels[index];
+                    if (((argb >>> 24) & 0xFF) == 0) continue;
+                    double distance = Math.hypot(x + 0.5 - centerX, y + 0.5 - centerY);
+                    if (distance < radius * 0.97 || distance > radius * 1.04) continue;
+                    if (isGrey(argb)) {
+                        pixels[index] = 0x00000000;
+                        crumbs++;
+                    }
+                }
+            }
+            masked += crumbs;
+            System.out.println("Badge circle r=" + Math.round(radius)
+                    + ", masked " + masked + " px (" + crumbs + " rim crumbs)");
+        }
+
         BufferedImage result = new BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB);
         result.setRGB(0, 0, width, height, pixels, 0, width);
         System.out.println("Cleared " + cleared + " background pixels");
@@ -126,6 +210,26 @@ public final class IconMaker {
     }
 
     /** White and light-grey (the drawn checkerboard) pixels qualify; warm cream and colour do not. */
+    /** Neutral grey/white, the colour of a baked-in transparency checkerboard. */
+    private static boolean isGrey(int argb) {
+        int r = (argb >> 16) & 0xFF;
+        int g = (argb >> 8) & 0xFF;
+        int b = argb & 0xFF;
+        int max = Math.max(r, Math.max(g, b));
+        int min = Math.min(r, Math.min(g, b));
+        return (max - min) <= 26 && max >= 150;
+    }
+
+    /** Dark disc or clearly coloured artwork — not the grey/white checkerboard. */
+    private static boolean isArtwork(int argb) {
+        int r = (argb >> 16) & 0xFF;
+        int g = (argb >> 8) & 0xFF;
+        int b = argb & 0xFF;
+        int max = Math.max(r, Math.max(g, b));
+        int min = Math.min(r, Math.min(g, b));
+        return max < 170 || (max - min) > 50;
+    }
+
     private static boolean isBackground(int argb) {
         if (isSemiTransparent(argb)) return false;
         int r = (argb >> 16) & 0xFF;
