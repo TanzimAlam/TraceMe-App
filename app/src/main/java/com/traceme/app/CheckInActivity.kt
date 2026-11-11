@@ -112,7 +112,7 @@ class CheckInActivity : ComponentActivity() {
                         textAlign = TextAlign.Center
                     )
                     Text(
-                        "Your phone hasn't moved for ${settings.stuckSeconds / 60} minutes. " +
+                        "Your phone hasn't moved for ${settings.stuckLabel}. " +
                             "If you don't answer, Overwatch texts your contacts and calls " +
                             "${settings.emergencyNumber}.",
                         style = MaterialTheme.typography.bodyMedium,
@@ -130,10 +130,10 @@ class CheckInActivity : ComponentActivity() {
                     }
 
                     QuietButton(
-                        text = "Pause checks for ${settings.quietMinutes} min",
+                        text = "Pause checks for ${settings.quietLabel}",
                         icon = Icons.Rounded.PauseCircle
                     ) {
-                        TrackingService.quiet(this@CheckInActivity, settings.quietMinutes)
+                        TrackingService.quiet(this@CheckInActivity, settings.quietSeconds)
                         finish()
                     }
 

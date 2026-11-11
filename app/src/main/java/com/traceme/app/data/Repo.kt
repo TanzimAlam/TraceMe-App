@@ -133,7 +133,12 @@ class Repo private constructor(context: Context) {
                 countryLabel = item.optString("countryLabel", "Bangladesh"),
                 stuckSeconds = item.optInt("stuckSeconds", 120),
                 responseSeconds = item.optInt("responseSeconds", 60),
-                quietMinutes = item.optInt("quietMinutes", 30),
+                quietSeconds = if (item.has("quietSeconds")) {
+                    item.optInt("quietSeconds", 1800)
+                } else {
+                    // Older installs stored whole minutes only.
+                    item.optInt("quietMinutes", 30) * 60
+                },
                 vibrate = item.optBoolean("vibrate", true),
                 autoCall = item.optBoolean("autoCall", true)
             )
@@ -148,7 +153,7 @@ class Repo private constructor(context: Context) {
             put("countryLabel", settings.countryLabel)
             put("stuckSeconds", settings.stuckSeconds)
             put("responseSeconds", settings.responseSeconds)
-            put("quietMinutes", settings.quietMinutes)
+            put("quietSeconds", settings.quietSeconds)
             put("vibrate", settings.vibrate)
             put("autoCall", settings.autoCall)
         }
@@ -227,6 +232,9 @@ class Repo private constructor(context: Context) {
                     put("name", place.name)
                     put("phone", place.phone)
                     put("distanceMeters", place.distanceMeters)
+                    put("detail", place.detail)
+                    put("area", place.area)
+                    put("altPhone", place.altPhone)
                 }
             )
         }
@@ -240,7 +248,10 @@ class Repo private constructor(context: Context) {
             Place(
                 name = item.optString("name"),
                 phone = item.optString("phone"),
-                distanceMeters = item.optInt("distanceMeters")
+                distanceMeters = item.optInt("distanceMeters"),
+                detail = item.optString("detail"),
+                area = item.optString("area"),
+                altPhone = item.optString("altPhone")
             )
         }
     }

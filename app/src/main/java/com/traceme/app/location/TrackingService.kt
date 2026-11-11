@@ -92,7 +92,7 @@ class TrackingService : Service() {
             }
             ACTION_SAFE -> resolveSafe()
             ACTION_QUIET -> startQuiet(
-                intent?.getIntExtra(EXTRA_MINUTES, settings.quietMinutes) ?: settings.quietMinutes
+                intent?.getIntExtra(EXTRA_SECONDS, settings.quietSeconds) ?: settings.quietSeconds
             )
             ACTION_HELP -> escalate("You asked for help")
         }
@@ -299,18 +299,18 @@ class TrackingService : Service() {
         AlarmTone.start(this)
         repo.log(
             "check",
-            "Asked if you're okay after ${settings.stuckSeconds / 60} min without movement"
+            "Asked if you're okay after ${settings.stuckLabel} without movement"
         )
         updateNotification()
 
         val safe = servicePendingIntent(ACTION_SAFE, 11)
-        val quiet = servicePendingIntent(ACTION_QUIET, 12, settings.quietMinutes)
+        val quiet = servicePendingIntent(ACTION_QUIET, 12, settings.quietSeconds)
         Notifier.showCheckIn(
             this,
             settings.responseSeconds,
             listOf(
                 NotificationCompat.Action(0, "I'm safe", safe),
-                NotificationCompat.Action(0, "Quiet ${settings.quietMinutes} min", quiet)
+                NotificationCompat.Action(0, "Quiet ${settings.quietLabel}", quiet)
             )
         )
 
@@ -334,13 +334,13 @@ class TrackingService : Service() {
         updateNotification()
     }
 
-    fun startQuiet(minutes: Int) {
+    fun startQuiet(seconds: Int) {
         AlarmTone.stop()
         state = WatchState.QUIET
-        quietUntil = SystemClock.elapsedRealtime() + minutes * 60_000L
+        quietUntil = SystemClock.elapsedRealtime() + seconds * 1000L
         lastMovementAt = SystemClock.elapsedRealtime()
         Notifier.cancel(this, Notifier.ID_CHECKIN)
-        repo.log("quiet", "Checks paused for $minutes min")
+        repo.log("quiet", "Checks paused for ${seconds / 60}m ${seconds % 60}s")
         updateNotification()
     }
 
@@ -413,15 +413,15 @@ class TrackingService : Service() {
             .addAction(0, "I'm safe", servicePendingIntent(ACTION_SAFE, 1))
             .addAction(
                 0,
-                "Quiet ${settings.quietMinutes}m",
-                servicePendingIntent(ACTION_QUIET, 2, settings.quietMinutes)
+                "Quiet ${settings.quietLabel}",
+                servicePendingIntent(ACTION_QUIET, 2, settings.quietSeconds)
             )
             .build()
     }
 
-    private fun servicePendingIntent(action: String, requestCode: Int, minutes: Int = 0): PendingIntent {
+    private fun servicePendingIntent(action: String, requestCode: Int, seconds: Int = 0): PendingIntent {
         val intent = Intent(this, TrackingService::class.java).setAction(action)
-        if (minutes > 0) intent.putExtra(EXTRA_MINUTES, minutes)
+        if (seconds > 0) intent.putExtra(EXTRA_SECONDS, seconds)
         return PendingIntent.getService(
             this,
             requestCode,
@@ -443,7 +443,7 @@ class TrackingService : Service() {
         const val ACTION_SAFE = "com.traceme.app.action.SAFE"
         const val ACTION_QUIET = "com.traceme.app.action.QUIET"
         const val ACTION_HELP = "com.traceme.app.action.HELP"
-        const val EXTRA_MINUTES = "minutes"
+        const val EXTRA_SECONDS = "seconds"
 
         @Volatile
         var isRunning: Boolean = false
@@ -489,11 +489,11 @@ class TrackingService : Service() {
             context.startService(Intent(context, TrackingService::class.java).setAction(ACTION_SAFE))
         }
 
-        fun quiet(context: Context, minutes: Int) {
+        fun quiet(context: Context, seconds: Int) {
             if (!isRunning) return
             val intent = Intent(context, TrackingService::class.java)
                 .setAction(ACTION_QUIET)
-                .putExtra(EXTRA_MINUTES, minutes)
+                .putExtra(EXTRA_SECONDS, seconds)
             context.startService(intent)
         }
 

@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
@@ -16,6 +17,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.traceme.app.data.UserSettings
+import com.traceme.app.data.shortDuration
 
 data class NumberPreset(val label: String, val number: String)
 
@@ -59,8 +61,8 @@ fun EmergencyNumberSection(
     onChange: (UserSettings) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    Column(modifier = modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        SectionLabel("Emergency number")
+    Column(modifier = modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        SectionHeader("Emergency number", accent = Danger)
         Text(
             "Who we call when a check-in is missed. Pick your country or type the number yourself.",
             style = MaterialTheme.typography.bodySmall,
@@ -94,6 +96,7 @@ fun EmergencyNumberSection(
             },
             label = { Text("Emergency number") },
             singleLine = true,
+            shape = RoundedCornerShape(18.dp),
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
             modifier = Modifier.fillMaxWidth()
         )
@@ -106,25 +109,44 @@ fun TimingSection(
     onChange: (UserSettings) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    Column(modifier = modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        SectionLabel("Check-in timing")
-        ChipRow(
-            title = "Ask if I haven't moved for",
-            options = listOf(60 to "1 min", 120 to "2 min", 180 to "3 min", 300 to "5 min"),
-            selected = settings.stuckSeconds,
-            onSelect = { onChange(settings.copy(stuckSeconds = it)) }
+    Column(modifier = modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(20.dp)) {
+        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            SectionHeader("Check-in timing", accent = Clay)
+            Text(
+                "Slide to any value — no fixed menus. Each step lands on a whole 30 seconds and clicks as you cross it.",
+                style = MaterialTheme.typography.bodySmall,
+                color = InkSoft
+            )
+        }
+
+        StepSlider(
+            label = "Ask if I haven't moved for",
+            value = settings.stuckSeconds,
+            range = 60..900,
+            step = 30,
+            format = { shortDuration(it) },
+            hint = "30 second steps · 1 min to 15 min",
+            onChange = { onChange(settings.copy(stuckSeconds = it)) }
         )
-        ChipRow(
-            title = "Time I get to answer",
-            options = listOf(30 to "30 s", 45 to "45 s", 60 to "60 s", 90 to "90 s"),
-            selected = settings.responseSeconds,
-            onSelect = { onChange(settings.copy(responseSeconds = it)) }
+
+        StepSlider(
+            label = "Time I get to answer",
+            value = settings.responseSeconds,
+            range = 15..180,
+            step = 15,
+            format = { shortDuration(it) },
+            hint = "15 second steps · 15 s to 3 min",
+            onChange = { onChange(settings.copy(responseSeconds = it)) }
         )
-        ChipRow(
-            title = "Default pause length",
-            options = listOf(15 to "15 min", 30 to "30 min", 45 to "45 min", 60 to "1 hr"),
-            selected = settings.quietMinutes,
-            onSelect = { onChange(settings.copy(quietMinutes = it)) }
+
+        StepSlider(
+            label = "Default pause length",
+            value = settings.quietSeconds,
+            range = 900..3600,
+            step = 30,
+            format = { shortDuration(it) },
+            hint = "30 second steps · 15 min to 1 hour (so 20 min 30 s is allowed)",
+            onChange = { onChange(settings.copy(quietSeconds = it)) }
         )
     }
 }

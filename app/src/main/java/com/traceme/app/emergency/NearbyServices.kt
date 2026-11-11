@@ -14,38 +14,51 @@ import kotlin.math.sin
 import kotlin.math.sqrt
 
 /**
- * Finds the closest police stations and hospitals with phone numbers using
- * OpenStreetMap's Overpass API. No API key, no backend, no cost.
+ * Finds the closest police stations (thana) and hospitals around the user,
+ * together with any phone numbers OpenStreetMap has for them.
+ *
+ * Uses the Overpass API: no key, no billing, no backend.
  */
 object NearbyServices {
 
+    private const val POLICE_RADIUS = 6_000
+    private const val HOSPITAL_RADIUS = 8_000
+    private const val POLICE_LIMIT = 6
+    private const val HOSPITAL_LIMIT = 5
+
     suspend fun find(latitude: Double, longitude: Double): NearbyHelp = withContext(Dispatchers.IO) {
         val query = """
-            [out:json][timeout:20];
+            [out:json][timeout:25];
             (
-              node(around:4000,$latitude,$longitude)[amenity=police];
-              way(around:4000,$latitude,$longitude)[amenity=police];
-              node(around:5000,$latitude,$longitude)[amenity=hospital];
-              way(around:5000,$latitude,$longitude)[amenity=hospital];
+              node(around:$POLICE_RADIUS,$latitude,$longitude)[amenity=police];
+              way(around:$POLICE_RADIUS,$latitude,$longitude)[amenity=police];
+              relation(around:$POLICE_RADIUS,$latitude,$longitude)[amenity=police];
+              node(around:$HOSPITAL_RADIUS,$latitude,$longitude)[amenity=hospital];
+              way(around:$HOSPITAL_RADIUS,$latitude,$longitude)[amenity=hospital];
+              relation(around:$HOSPITAL_RADIUS,$latitude,$longitude)[amenity=hospital];
             );
-            out center 40;
+            out center 120;
         """.trimIndent()
 
         val endpoints = listOf(
             "https://overpass-api.de/api/interpreter",
-            "https://overpass.kumi.systems/api/interpreter"
+            "https://overpass.kumi.systems/api/interpreter",
+            "https://overpass.private.coffee/api/interpreter"
         )
 
         for (endpoint in endpoints) {
             try {
                 val connection = (URL(endpoint).openConnection() as HttpURLConnection).apply {
                     requestMethod = "POST"
-                    connectTimeout = 8000
-                    readTimeout = 15000
+                    connectTimeout = 9000
+                    readTimeout = 20000
                     doOutput = true
                     setRequestProperty("Content-Type", "application/x-www-form-urlencoded")
                     setRequestProperty("Accept", "application/json")
-                    setRequestProperty("User-Agent", "TraceMe-Android/1.0 (night walk safety)")
+                    setRequestProperty(
+                        "User-Agent",
+                        "Overwatch-Android/1.0 (night walk safety; contact: oayankh@gmail.com)"
+                    )
                 }
                 connection.outputStream.use { stream ->
                     stream.write(("data=" + URLEncoder.encode(query, "UTF-8")).toByteArray())
@@ -88,24 +101,57 @@ object NearbyServices {
 
                 val name = tags.optString("name")
                     .ifBlank { tags.optString("name:en") }
+                    .ifBlank { tags.optString("official_name") }
                     .ifBlank { if (amenity == "police") "Police station" else "Hospital" }
-                val phone = tags.optString("phone")
-                    .ifBlank { tags.optString("contact:phone") }
-                    .ifBlank { tags.optString("emergency:phone") }
+
+                // Everything that might be a human being's phone number.
+                val numbers = listOf(
+                    tags.optString("phone"),
+                    tags.optString("contact:phone"),
+                    tags.optString("contact:mobile"),
+                    tags.optString("mobile"),
+                    tags.optString("emergency:phone")
+                ).map { it.trim() }
+                    .filter { it.isNotBlank() }
+                    .flatMap { it.split(';', ',') }
+                    .map { it.trim() }
+                    .distinct()
+
+                val detail = listOf(
+                    tags.optString("operator"),
+                    tags.optString("contact:name"),
+                    tags.optString("official_name").takeIf { it != name } ?: "",
+                    tags.optString("description")
+                ).firstOrNull { it.isNotBlank() } ?: ""
+
+                val area = listOf(
+                    tags.optString("addr:street"),
+                    tags.optString("addr:suburb"),
+                    tags.optString("addr:city")
+                ).filter { it.isNotBlank() }.joinToString(", ")
 
                 val place = Place(
                     name = name,
-                    phone = phone,
-                    distanceMeters = distanceMeters(latitude, longitude, placeLatitude, placeLongitude).toInt()
+                    phone = numbers.firstOrNull() ?: "",
+                    distanceMeters = distanceMeters(latitude, longitude, placeLatitude, placeLongitude).toInt(),
+                    detail = detail,
+                    area = area,
+                    altPhone = numbers.drop(1).firstOrNull() ?: ""
                 )
                 if (amenity == "police") police.add(place) else hospitals.add(place)
             }
         } catch (e: Exception) {
             return NearbyHelp()
         }
+
+        fun ranked(list: List<Place>, limit: Int): List<Place> =
+            list.sortedBy { it.distanceMeters }
+                .distinctBy { "${it.name.lowercase()}@${it.distanceMeters / 250}" }
+                .take(limit)
+
         return NearbyHelp(
-            police = police.sortedBy { it.distanceMeters }.take(3),
-            hospitals = hospitals.sortedBy { it.distanceMeters }.take(4)
+            police = ranked(police, POLICE_LIMIT),
+            hospitals = ranked(hospitals, HOSPITAL_LIMIT)
         )
     }
 

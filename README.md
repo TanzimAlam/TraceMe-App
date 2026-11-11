@@ -7,7 +7,8 @@ numbers, and calls your emergency number.
 
 Built with Kotlin + Jetpack Compose (Material 3), using the palette from
 [colorhunt.co/palette/ffbe91ffddb0fffce1cfebff](https://colorhunt.co/palette/ffbe91ffddb0fffce1cfebff),
-and an OpenStreetMap map view (osmdroid — no API key, no billing).
+and a live route map that draws with **Google Maps** when an API key is configured and falls
+back to **OpenStreetMap** (osmdroid, no key, no billing) so it is never a blank square.
 
 ---
 
@@ -25,18 +26,20 @@ contact before you can start.
   red light doesn't count as "moving" — but the bus stopping for 2 minutes might, which is
   why the pause button exists).
 
-**Route tab** — set where tonight's walk starts and where it ends, either by pinning points
-on the map or by using your current position as the start, then watch your own blue dot move
-along the map in real time while the watch runs, with the distance left to your destination.
+**Where are you headed?** is asked once, at the top of the home screen — type a place, road or
+landmark, pick a suggestion, and Overwatch saves it with your live position as the start. The
+**Route** tab then shows that destination on the map with your dot moving in real time and the
+distance still to go. No pinning on the map, no second place where a destination is requested.
 
-**Ask me if I haven't moved for 2 minutes** (configurable: 1/2/3/5 min) → the phone rings
+**Ask me if I haven't moved for 2 minutes** (a slider in 30-second steps) → the phone rings
 an alarm, vibrates, shows a notification over the lock screen and opens a full-screen
-check-in screen with **I'm safe**, **Pause checks for 30 min** and **I need help now**.
+check-in screen with **I'm safe**, **Pause checks** and **I need help now**.
 
-**Pause checks** (the "snooze") silences everything — no questions, no alerts — for
-15/30/45/60 min. Trapped in traffic or waiting for someone? Pause instead of being nagged.
+**Pause checks** (the "snooze") silences everything — no questions, no alerts — for whatever
+length you slide to, in 30-second steps, so 20 min 30 s is a real choice. Trapped in traffic
+or waiting for someone? Pause instead of being nagged.
 
-**No answer within 60 s** (configurable 30–90 s) → SOS:
+**No answer within 60 s** (slider, 15-second steps) → SOS:
 
 1. Full-screen SOS screen with a big **Call 999 now** button and an 8-second auto-dial
    countdown.
@@ -46,8 +49,9 @@ check-in screen with **I'm safe**, **Pause checks for 30 min** and **I need help
    you — or the contact you phoned — can arrange help.
 
 Contacts are managed in **Contacts** (add as many as you like; one is required). The
-hotline and all timings live in **Settings**. **Activity** keeps a local log of every
-watch, check-in, pause and SOS.
+hotline and all timings live in **Settings**; every timing is a slider, and each step you
+cross gives a short haptic tap and a click, in both directions. **Activity** keeps a local
+log of every watch, check-in, pause and SOS.
 
 ---
 
@@ -131,17 +135,49 @@ each one's status and links to Android's app settings.
 ## Nearby police and hospitals
 
 No API key, no backend: Overwatch queries the
-[Overpass API](https://overpass-api.de/) for `amenity=police` (4 km) and `amenity=hospital`
-(5 km) around your position, sorts by distance, and reads `phone` / `contact:phone` tags.
-A second mirror is tried if the first fails. If a station has no phone number in
-OpenStreetMap, Overwatch says "no number listed" instead of inventing one.
+[Overpass API](https://overpass-api.de/) for `amenity=police` (6 km) and `amenity=hospital`
+(8 km) around your position. Three mirrors are tried in turn before giving up.
 
-**The lookup no longer waits for the walking watch to have a fix.** Tapping *Find police &
-hospitals* now asks the phone for a fresh high-accuracy fix itself (falling back to the last
-known position), and if location is switched off it offers a **Turn on** button that opens
-the system location settings.
+The results are split into two labelled sections, and both are sorted strictly **nearest
+first**, numbered 1, 2, 3… so the closest thana is always the top row:
+
+- **Police & thana** — drawn in a blue accent with a shield badge and a filled **Hotline 999**
+  button on the section header, so the police half of the list is the thing your eye lands on.
+  Each row shows the station name, street/area, distance, the operator or officer name where
+  OpenStreetMap has one, and *every* number tagged on that station (`phone`, `contact:phone`,
+  `contact:mobile`, `emergency:phone`), tappable to call.
+- **Hospitals** — same layout in amber, below the police section.
+
+If a station has no number in OpenStreetMap, the row says so and points at the hotline instead
+of inventing a number. This is the honest limit of a keyless data source: OpenStreetMap rarely
+carries an individual thana officer's mobile, so what you get is the station's listed line plus
+the national hotline.
+
+**The lookup does not wait for the walking watch to have a fix.** It asks the phone for a fresh
+high-accuracy fix itself (falling back to the last known position), and if location is switched
+off it offers a **Turn on** button that opens the system location settings.
 
 ---
+
+## Map: Google Maps or OpenStreetMap
+
+The route screen uses the **Google Maps SDK for Android** (via `maps-compose`) when a key is
+present, and silently falls back to **OpenStreetMap** (osmdroid) when it is not — so a fresh
+clone always shows a working map.
+
+```properties
+# local.properties (git-ignored)
+MAPS_API_KEY=AIza...your-restricted-key
+```
+
+Then rebuild. The key is passed to the manifest as `com.google.android.geo.API_KEY` and to
+`BuildConfig.MAPS_API_KEY`.
+
+**Google Maps needs a billing account**, not just a key: enable *Maps SDK for Android* in
+Google Cloud, link a billing account to the project, then create the key (restrict it to the
+Android app with package `com.traceme.app` and your signing SHA-1). Without billing the Google
+map renders empty — which is exactly why the OpenStreetMap fallback exists and why the app
+stays on it until `MAPS_API_KEY` is set.
 
 ## Honest limitations
 
@@ -160,7 +196,9 @@ the system location settings.
   no cloud sync. Replace local auth with a real backend before any multi-user release.
 - **The map is not a navigation engine.** It shows your position, a straight line between
   start and destination, and the distance left — it does not compute turn-by-turn street
-  routing.
+  routing, on either provider.
+- **Google Maps is only live once `MAPS_API_KEY` is set** and the project has billing. Out of
+  the box the app uses OpenStreetMap, which is free forever but has plainer cartography.
 - **Nearby lookup needs internet** and OpenStreetMap data quality varies by city; phone
   numbers are often missing in South Asia. The emergency number always works.
 

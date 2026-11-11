@@ -18,6 +18,11 @@ val localProperties = Properties().apply {
 val googleWebClientId: String = localProperties.getProperty("GOOGLE_WEB_CLIENT_ID")
     ?: "398828360758-5bagf3jfcvlss1djdbsi9m44n2atam8h.apps.googleusercontent.com"
 
+// Google Maps for Android needs its own key (and a billing account on the Cloud
+// project). Put MAPS_API_KEY=... in local.properties. While it is empty the app
+// draws the route on OpenStreetMap instead, so the map is never blank.
+val mapsApiKey: String = localProperties.getProperty("MAPS_API_KEY") ?: ""
+
 android {
     namespace = "com.traceme.app"
     compileSdk = 34
@@ -27,8 +32,10 @@ android {
         minSdk = 26
         targetSdk = 34
         versionCode = 1
-        versionName = "1.0"
+        versionName = "1.1"
         buildConfigField("String", "GOOGLE_WEB_CLIENT_ID", "\"$googleWebClientId\"")
+        buildConfigField("String", "MAPS_API_KEY", "\"$mapsApiKey\"")
+        manifestPlaceholders["mapsApiKey"] = mapsApiKey
     }
 
     buildTypes {
@@ -75,7 +82,9 @@ dependencies {
     implementation("androidx.credentials:credentials-play-services-auth:1.3.0")
     implementation("com.google.android.libraries.identity.googleid:googleid:1.1.0")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1")
-    // OpenStreetMap map view: no API key, no billing, same source as Nearby Help.
+    // Google Maps (used when MAPS_API_KEY is configured) and the OpenStreetMap
+    // fallback that keeps the route screen working without a key.
+    implementation("com.google.maps.android:maps-compose:4.4.1")
     implementation("org.osmdroid:osmdroid-android:6.1.20")
 
     debugImplementation("androidx.compose.ui:ui-tooling")
