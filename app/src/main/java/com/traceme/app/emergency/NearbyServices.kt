@@ -4,6 +4,7 @@ import com.traceme.app.data.NearbyHelp
 import com.traceme.app.data.Place
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import org.json.JSONObject
 import java.net.HttpURLConnection
 import java.net.URL
@@ -14,67 +15,97 @@ import kotlin.math.sin
 import kotlin.math.sqrt
 
 /**
- * Finds the closest police stations (thana) and hospitals around the user,
- * together with any phone numbers OpenStreetMap has for them.
+ * Nearby police and hospitals in three layers, so the list is never empty and
+ * never spins forever:
  *
- * Uses the Overpass API: no key, no billing, no backend.
+ *  1. [local]  — the bundled [EmergencyDirectory], instant and offline.
+ *  2. [remote] — OpenStreetMap (Overpass), best effort, hard 12 s budget.
+ *  3. [merge]  — bundled numbers kept on top, mapped stations filling the gaps.
  */
 object NearbyServices {
 
-    private const val POLICE_RADIUS = 6_000
-    private const val HOSPITAL_RADIUS = 8_000
-    private const val POLICE_LIMIT = 6
-    private const val HOSPITAL_LIMIT = 5
+    private const val POLICE_RADIUS = 7_000
+    private const val HOSPITAL_RADIUS = 9_000
+    private const val POLICE_LIMIT = 8
+    private const val HOSPITAL_LIMIT = 6
 
-    suspend fun find(latitude: Double, longitude: Double): NearbyHelp = withContext(Dispatchers.IO) {
-        val query = """
-            [out:json][timeout:25];
-            (
-              node(around:$POLICE_RADIUS,$latitude,$longitude)[amenity=police];
-              way(around:$POLICE_RADIUS,$latitude,$longitude)[amenity=police];
-              relation(around:$POLICE_RADIUS,$latitude,$longitude)[amenity=police];
-              node(around:$HOSPITAL_RADIUS,$latitude,$longitude)[amenity=hospital];
-              way(around:$HOSPITAL_RADIUS,$latitude,$longitude)[amenity=hospital];
-              relation(around:$HOSPITAL_RADIUS,$latitude,$longitude)[amenity=hospital];
-            );
-            out center 120;
-        """.trimIndent()
+    fun local(latitude: Double, longitude: Double): NearbyHelp =
+        EmergencyDirectory.nearby(latitude, longitude)
 
-        val endpoints = listOf(
-            "https://overpass-api.de/api/interpreter",
-            "https://overpass.kumi.systems/api/interpreter",
-            "https://overpass.private.coffee/api/interpreter"
-        )
+    suspend fun remote(latitude: Double, longitude: Double): NearbyHelp =
+        withTimeoutOrNull(12_000L) { fetch(latitude, longitude) } ?: NearbyHelp()
 
-        for (endpoint in endpoints) {
-            try {
-                val connection = (URL(endpoint).openConnection() as HttpURLConnection).apply {
-                    requestMethod = "POST"
-                    connectTimeout = 9000
-                    readTimeout = 20000
-                    doOutput = true
-                    setRequestProperty("Content-Type", "application/x-www-form-urlencoded")
-                    setRequestProperty("Accept", "application/json")
-                    setRequestProperty(
-                        "User-Agent",
-                        "Overwatch-Android/1.0 (night walk safety; contact: oayankh@gmail.com)"
-                    )
-                }
-                connection.outputStream.use { stream ->
-                    stream.write(("data=" + URLEncoder.encode(query, "UTF-8")).toByteArray())
-                }
-                if (connection.responseCode in 200..299) {
-                    val body = connection.inputStream.bufferedReader().use { it.readText() }
-                    connection.disconnect()
-                    return@withContext parse(body, latitude, longitude)
-                }
-                connection.disconnect()
-            } catch (e: Exception) {
-                // try the next mirror
-            }
+    /** Bundled first, map results after, then nearest-first across both. */
+    fun merge(local: NearbyHelp, remote: NearbyHelp): NearbyHelp {
+        fun combine(bundled: List<Place>, mapped: List<Place>, limit: Int): List<Place> {
+            val seen = bundled.map { it.name.lowercase().take(14) }.toMutableSet()
+            val extra = mapped.filter { seen.add(it.name.lowercase().take(14)) }
+            return (bundled + extra)
+                .sortedWith(compareBy({ !it.national }, { it.distanceMeters }))
+                .take(limit)
         }
-        NearbyHelp()
+        return NearbyHelp(
+            police = combine(local.police, remote.police, POLICE_LIMIT),
+            hospitals = combine(local.hospitals, remote.hospitals, HOSPITAL_LIMIT)
+        )
     }
+
+    /** Local + remote in one call, for the SOS text. */
+    suspend fun find(latitude: Double, longitude: Double): NearbyHelp {
+        val local = local(latitude, longitude)
+        return merge(local, remote(latitude, longitude))
+    }
+
+    private suspend fun fetch(latitude: Double, longitude: Double): NearbyHelp =
+        withContext(Dispatchers.IO) {
+            val query = """
+                [out:json][timeout:20];
+                (
+                  node(around:$POLICE_RADIUS,$latitude,$longitude)[amenity=police];
+                  way(around:$POLICE_RADIUS,$latitude,$longitude)[amenity=police];
+                  relation(around:$POLICE_RADIUS,$latitude,$longitude)[amenity=police];
+                  node(around:$HOSPITAL_RADIUS,$latitude,$longitude)[amenity=hospital];
+                  way(around:$HOSPITAL_RADIUS,$latitude,$longitude)[amenity=hospital];
+                  relation(around:$HOSPITAL_RADIUS,$latitude,$longitude)[amenity=hospital];
+                );
+                out center 120;
+            """.trimIndent()
+
+            val endpoints = listOf(
+                "https://overpass-api.de/api/interpreter",
+                "https://overpass.kumi.systems/api/interpreter",
+                "https://overpass.private.coffee/api/interpreter"
+            )
+
+            for (endpoint in endpoints) {
+                try {
+                    val connection = (URL(endpoint).openConnection() as HttpURLConnection).apply {
+                        requestMethod = "POST"
+                        connectTimeout = 6000
+                        readTimeout = 11000
+                        doOutput = true
+                        setRequestProperty("Content-Type", "application/x-www-form-urlencoded")
+                        setRequestProperty("Accept", "application/json")
+                        setRequestProperty(
+                            "User-Agent",
+                            "Overwatch-Android/1.1 (night walk safety; contact: oayankh@gmail.com)"
+                        )
+                    }
+                    connection.outputStream.use { stream ->
+                        stream.write(("data=" + URLEncoder.encode(query, "UTF-8")).toByteArray())
+                    }
+                    if (connection.responseCode in 200..299) {
+                        val body = connection.inputStream.bufferedReader().use { it.readText() }
+                        connection.disconnect()
+                        return@withContext parse(body, latitude, longitude)
+                    }
+                    connection.disconnect()
+                } catch (e: Exception) {
+                    // try the next mirror
+                }
+            }
+            NearbyHelp()
+        }
 
     private fun parse(body: String, latitude: Double, longitude: Double): NearbyHelp {
         val police = mutableListOf<Place>()

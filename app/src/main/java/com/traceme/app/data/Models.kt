@@ -63,7 +63,9 @@ data class Place(
     /** Street / area, when the map has it. */
     val area: String = "",
     /** Extra number tagged on the same place (control room, emergency desk). */
-    val altPhone: String = ""
+    val altPhone: String = "",
+    /** A number that works everywhere in the country, so it is pinned on top. */
+    val national: Boolean = false
 )
 
 data class NearbyHelp(

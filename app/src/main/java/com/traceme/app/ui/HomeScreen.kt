@@ -1,5 +1,6 @@
 package com.traceme.app.ui
 
+import android.Manifest
 import android.content.Intent
 import android.os.SystemClock
 import android.provider.Settings
@@ -31,11 +32,13 @@ import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.LocalHospital
 import androidx.compose.material.icons.rounded.LocalPolice
+import androidx.compose.material.icons.rounded.MyLocation
 import androidx.compose.material.icons.rounded.PauseCircle
 import androidx.compose.material.icons.rounded.People
 import androidx.compose.material.icons.rounded.Place
 import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.Search
+import androidx.compose.material.icons.rounded.Sms
 import androidx.compose.material.icons.rounded.Stop
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
@@ -108,6 +111,7 @@ fun HomeScreen(
     var nearbyFailed by remember { mutableStateOf(false) }
     var locationOff by remember { mutableStateOf(false) }
     var startAfterPermission by remember { mutableStateOf(false) }
+    var showPin by remember { mutableStateOf(false) }
 
     // Destination search — the only place a destination is ever asked for.
     var query by remember { mutableStateOf("") }
@@ -164,11 +168,63 @@ fun HomeScreen(
                     return@launch
                 }
             }
-            val help = NearbyServices.find(latitude, longitude)
-            nearby = help
-            nearbyFailed = help.isEmpty
+
+            // The bundled numbers come from inside the APK, so this line is
+            // instant and works with no data at all.
+            nearby = NearbyServices.local(latitude, longitude)
             nearbyBusy = false
+
+            // Then, only as a bonus, the map adds the exact thana and hospital
+            // around you. It can never block or empty the list above.
+            val mapped = NearbyServices.remote(latitude, longitude)
+            if (!mapped.isEmpty) {
+                nearby = NearbyServices.merge(nearby ?: NearbyHelp(), mapped)
+            }
         }
+    }
+
+    fun sendSos() {
+        if (contacts.isEmpty()) {
+            Toast.makeText(
+                context,
+                "Add an emergency contact first — there is nobody to text.",
+                Toast.LENGTH_LONG
+            ).show()
+            return
+        }
+        val snapshot = TrackingService.snapshot()
+        val latitude = if (snapshot.hasFix) snapshot.latitude else me?.latitude
+        val longitude = if (snapshot.hasFix) snapshot.longitude else me?.longitude
+        EmergencyDispatcher.dispatch(
+            context,
+            latitude,
+            longitude,
+            snapshot.accuracy,
+            "You pressed Get help now"
+        )
+        Toast.makeText(
+            context,
+            "SOS text sent to ${contacts.size} contact(s)",
+            Toast.LENGTH_LONG
+        ).show()
+    }
+
+    val smsLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        if (granted) {
+            sendSos()
+        } else {
+            Toast.makeText(
+                context,
+                "Without SMS permission Overwatch cannot text your contacts.",
+                Toast.LENGTH_LONG
+            ).show()
+        }
+    }
+
+    fun requestHelp() {
+        if (Perms.hasSms(context)) sendSos() else smsLauncher.launch(Manifest.permission.SEND_SMS)
     }
 
     fun startWatchNow() {
@@ -400,9 +456,17 @@ fun HomeScreen(
                         }
                     } else if (query.trim().length >= 3 && !searching) {
                         Text(
-                            "Nothing found for “$query”. Try a landmark, road or area name.",
+                            "Nothing found for “$query”. Try a house number, a road or a landmark — or drop a pin instead.",
                             style = MaterialTheme.typography.bodySmall,
                             color = InkSoft
+                        )
+                    }
+
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        PillButton(
+                            text = "Can't find it? Pin the spot",
+                            icon = Icons.Rounded.MyLocation,
+                            onClick = { showPin = true }
                         )
                     }
                 }
@@ -582,7 +646,9 @@ fun HomeScreen(
                     }
                 )
                 Text(
-                    "Police stations (thana) and hospitals around you, nearest first, from OpenStreetMap.",
+                    "Police stations (thana) and hospitals around you, nearest first. The numbers that " +
+                        "work anywhere are at the top, then the ones closest to you — all of them are " +
+                        "stored inside the app, so the list appears even with no signal.",
                     style = MaterialTheme.typography.bodySmall,
                     color = InkSoft
                 )
@@ -602,7 +668,7 @@ fun HomeScreen(
                         )
                     }
 
-                    nearby == null -> QuietButton("Find police & hospitals", Icons.Rounded.LocalPolice) {
+                    nearby == null -> QuietButton("Show police & hospital hotlines", Icons.Rounded.LocalPolice) {
                         requireLocation { findNearbyHelp() }
                     }
 
@@ -630,7 +696,7 @@ fun HomeScreen(
                             )
                             Spacer(Modifier.height(4.dp))
                             NearbySection(
-                                title = "Hospitals",
+                                title = "Hospitals & ambulance",
                                 icon = Icons.Rounded.LocalHospital,
                                 accent = WarnAmber,
                                 places = help.hospitals,
@@ -651,18 +717,17 @@ fun HomeScreen(
             ) {
                 SectionHeader("If something feels wrong", accent = Danger)
                 Text(
-                    "Calls ${settings.emergencyNumber} and texts your ${contacts.size} contact(s) your live location, plus the nearest police and hospital numbers.",
+                    "One tap texts your ${contacts.size} contact(s): that you're in trouble, your live " +
+                        "location, and the police station and hospital/ambulance numbers around you. " +
+                        "It does not call anyone — dialling ${settings.emergencyNumber} stays your choice.",
                     style = MaterialTheme.typography.bodySmall,
                     color = InkSoft
                 )
-                ActionButton("Get help now", Icons.Rounded.Call, container = Danger) {
-                    EmergencyDispatcher.dispatch(
-                        context,
-                        if (snapshot.hasFix) snapshot.latitude else me?.latitude,
-                        if (snapshot.hasFix) snapshot.longitude else me?.longitude,
-                        snapshot.accuracy,
-                        "You pressed Get help now"
-                    )
+                ActionButton("Text my contacts now", Icons.Rounded.Sms, container = Danger) {
+                    requestHelp()
+                }
+                QuietButton("Call ${settings.emergencyNumber} myself", Icons.Rounded.Call) {
+                    EmergencyDispatcher.dial(context, settings.emergencyNumber)
                 }
             }
 
@@ -789,6 +854,18 @@ fun HomeScreen(
             },
             dismissButton = {
                 TextButton(onClick = { showQuiet = false }) { Text("Cancel", color = InkSoft) }
+            }
+        )
+    }
+
+    if (showPin) {
+        PinPicker(
+            initial = trip.destination,
+            fallback = me,
+            onCancel = { showPin = false },
+            onConfirm = { point ->
+                showPin = false
+                chooseDestination(point)
             }
         )
     }
@@ -933,7 +1010,7 @@ private fun NearbySection(
                             Text(
                                 listOf(
                                     place.area,
-                                    formatDistance(place.distanceMeters)
+                                    if (place.national) "Nationwide" else formatDistance(place.distanceMeters)
                                 ).filter { it.isNotBlank() }.joinToString(" · "),
                                 style = MaterialTheme.typography.bodySmall,
                                 color = InkFaint

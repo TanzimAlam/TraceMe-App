@@ -1,6 +1,7 @@
 package com.traceme.app.ui
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -9,6 +10,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material3.FilterChip
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Add
@@ -35,6 +37,12 @@ import com.traceme.app.data.EmergencyContact
 import com.traceme.app.data.Repo
 import java.util.UUID
 
+/** Offered as chips so the relationship is a word, not a paragraph. */
+private val RelationOptions = listOf(
+    "Mother", "Father", "Sister", "Brother", "Friend",
+    "Partner", "Spouse", "Colleague", "Neighbour"
+)
+
 @Composable
 fun ContactsScreen() {
     val context = LocalContext.current
@@ -58,7 +66,8 @@ fun ContactsScreen() {
         )
         Text(
             "When a check-in is missed, every contact here gets an SMS with your last location, " +
-                "the nearest police station and the nearest hospital numbers.",
+                "the nearest police stations and the hospital/ambulance numbers. The relationship " +
+                "you add here is what the guard message uses if someone tampers with your phone.",
             style = MaterialTheme.typography.bodyMedium,
             color = InkSoft
         )
@@ -158,10 +167,27 @@ fun ContactDialog(
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth()
                 )
+                Text(
+                    "How is this person related to you?",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = InkSoft
+                )
+                Row(
+                    modifier = Modifier.horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    RelationOptions.forEach { option ->
+                        FilterChip(
+                            selected = relation.equals(option, ignoreCase = true),
+                            onClick = { relation = option },
+                            label = { Text(option) }
+                        )
+                    }
+                }
                 OutlinedTextField(
                     value = relation,
-                    onValueChange = { relation = it },
-                    label = { Text("Relationship (optional)") },
+                    onValueChange = { relation = it.take(24) },
+                    label = { Text("Relationship (mother, friend, colleague…)") },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth()
                 )
@@ -178,6 +204,10 @@ fun ContactDialog(
                 }
                 if (phone.isBlank() && email.isBlank()) {
                     error = "Add a phone number or an email."
+                    return@TextButton
+                }
+                if (relation.isBlank()) {
+                    error = "Say how this person is related to you — the guard alert needs it."
                     return@TextButton
                 }
                 onSave(

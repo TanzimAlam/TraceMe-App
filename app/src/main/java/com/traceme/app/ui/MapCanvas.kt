@@ -40,6 +40,8 @@ import org.osmdroid.views.overlay.Polyline as OsmPolyline
 data class MapScene(
     val start: Waypoint? = null,
     val destination: Waypoint? = null,
+    /** A point the user is choosing by hand, drawn with a dedicated pin. */
+    val pin: Waypoint? = null,
     val me: Waypoint? = null,
     val center: Waypoint? = null,
     val zoom: Float = 16f,
@@ -55,11 +57,15 @@ val googleMapsConfigured: Boolean get() = BuildConfig.MAPS_API_KEY.isNotBlank()
  * route screen is never a blank grey rectangle.
  */
 @Composable
-fun MapCanvas(scene: MapScene, modifier: Modifier = Modifier) {
+fun MapCanvas(
+    scene: MapScene,
+    modifier: Modifier = Modifier,
+    onTap: ((Double, Double) -> Unit)? = null
+) {
     if (googleMapsConfigured) {
-        GoogleScene(scene, modifier)
+        GoogleScene(scene, modifier, onTap)
     } else {
-        OsmScene(scene, modifier)
+        OsmScene(scene, modifier, onTap)
     }
 }
 
@@ -73,7 +79,11 @@ private const val FALLBACK_LON = 90.4125
  * ------------------------------------------------------------------ */
 
 @Composable
-private fun GoogleScene(scene: MapScene, modifier: Modifier) {
+private fun GoogleScene(
+    scene: MapScene,
+    modifier: Modifier,
+    onTap: ((Double, Double) -> Unit)?
+) {
     val camera = rememberCameraPositionState {
         val first = scene.center ?: scene.me ?: scene.bounds.firstOrNull()
         position = CameraPosition.fromLatLngZoom(
@@ -99,6 +109,14 @@ private fun GoogleScene(scene: MapScene, modifier: Modifier) {
     GoogleMap(
         modifier = modifier.fillMaxSize(),
         cameraPositionState = camera,
+        onMapClick = { point ->
+            if (onTap == null) {
+                false
+            } else {
+                onTap(point.latitude, point.longitude)
+                true
+            }
+        },
         properties = MapProperties(isMyLocationEnabled = false),
         uiSettings = MapUiSettings(
             zoomControlsEnabled = false,
@@ -141,6 +159,15 @@ private fun GoogleScene(scene: MapScene, modifier: Modifier) {
                 snippet = "Your destination"
             )
         }
+        val pin = scene.pin
+        if (pin != null) {
+            Marker(
+                state = remember(pin) { MarkerState(position = pin.toLatLng()) },
+                title = pin.pretty(),
+                snippet = "Tap the map to move this pin",
+                icon = BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_ROSE)
+            )
+        }
         if (me != null) {
             Circle(
                 center = me.toLatLng(),
@@ -163,8 +190,17 @@ private fun GoogleScene(scene: MapScene, modifier: Modifier) {
  * ------------------------------------------------------------------ */
 
 @Composable
-private fun OsmScene(scene: MapScene, modifier: Modifier) {
+private fun OsmScene(
+    scene: MapScene,
+    modifier: Modifier,
+    onTap: ((Double, Double) -> Unit)?
+) {
     val context = LocalContext.current
+
+    // The tap receiver is installed once per MapView, so read the callback
+    // through a holder instead of capturing a stale lambda.
+    val tapHolder = remember { arrayOfNulls<(Double, Double) -> Unit>(1) }
+    tapHolder[0] = onTap
 
     val mapView = remember {
         MapView(context).apply {
@@ -196,6 +232,13 @@ private fun OsmScene(scene: MapScene, modifier: Modifier) {
             isEnabled = false
         }
     }
+    val pinMarker = remember {
+        OsmMarker(mapView).apply {
+            icon = ContextCompat.getDrawable(context, R.drawable.ic_pin_dest)
+            setAnchor(OsmMarker.ANCHOR_CENTER, OsmMarker.ANCHOR_BOTTOM)
+            isEnabled = false
+        }
+    }
     val routeLine = remember {
         OsmPolyline(mapView).apply {
             outlinePaint.color = 0xFFA2542F.toInt()
@@ -217,11 +260,21 @@ private fun OsmScene(scene: MapScene, modifier: Modifier) {
         mapView.overlays.add(liveLine)
         mapView.overlays.add(startMarker)
         mapView.overlays.add(destMarker)
+        mapView.overlays.add(pinMarker)
         mapView.overlays.add(meMarker)
         mapView.overlays.add(
             MapEventsOverlay(object : MapEventsReceiver {
-                override fun singleTapConfirmedHelper(p: GeoPoint): Boolean = false
-                override fun longPressHelper(p: GeoPoint): Boolean = false
+                override fun singleTapConfirmedHelper(p: GeoPoint): Boolean {
+                    val handler = tapHolder[0] ?: return false
+                    handler(p.latitude, p.longitude)
+                    return true
+                }
+
+                override fun longPressHelper(p: GeoPoint): Boolean {
+                    val handler = tapHolder[0] ?: return false
+                    handler(p.latitude, p.longitude)
+                    return true
+                }
             })
         )
         true
@@ -238,6 +291,10 @@ private fun OsmScene(scene: MapScene, modifier: Modifier) {
         destination?.let { destMarker.position = GeoPoint(it.latitude, it.longitude) }
         meMarker.isEnabled = me != null
         me?.let { meMarker.position = GeoPoint(it.latitude, it.longitude) }
+
+        val pin = scene.pin
+        pinMarker.isEnabled = pin != null
+        pin?.let { pinMarker.position = GeoPoint(it.latitude, it.longitude) }
 
         routeLine.isEnabled = start != null && destination != null
         if (start != null && destination != null) {

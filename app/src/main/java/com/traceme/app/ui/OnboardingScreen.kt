@@ -177,7 +177,7 @@ fun OnboardingScreen(onFinished: () -> Unit) {
 
             1 -> {
                 Text(
-                    "Who should we alert? The SOS text goes to every contact here with your last location and the nearest police and hospital numbers.",
+                    "Who should we alert? The SOS text goes to every contact here with your last location and the nearest police and hospital numbers. Add how each person is related to you — that is what the guard message says if someone tampers with your phone.",
                     style = MaterialTheme.typography.bodyMedium,
                     color = InkSoft
                 )
@@ -229,8 +229,8 @@ fun OnboardingScreen(onFinished: () -> Unit) {
                 SoftCard(container = Peach) {
                     Text(
                         "Overwatch will ask “are you okay?” after ${settings.stuckSeconds / 60} min without movement. " +
-                            "If you don't answer in ${settings.responseSeconds} s, it texts your contacts and calls " +
-                            "${settings.emergencyNumber}.",
+                            "If you don't answer in ${settings.responseSeconds} s, it texts your contacts your " +
+                            "location plus the nearest police and hospital numbers. It never dials for you.",
                         style = MaterialTheme.typography.bodyMedium,
                         color = Ink
                     )

@@ -57,6 +57,7 @@ import androidx.compose.ui.unit.dp
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import com.traceme.app.util.rememberSliderTicker
 import kotlin.math.roundToInt
 
 fun formatClock(timestamp: Long): String =
@@ -423,42 +424,13 @@ fun StepSlider(
     hint: String = "",
     onChange: (Int) -> Unit
 ) {
-    val context = LocalContext.current
-    val haptic = LocalHapticFeedback.current
-    val vibrator = remember(context) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            val manager = context.getSystemService(Vibrator::class.java)
-            manager?.takeIf { it.hasVibrator() }
-        } else {
-            @Suppress("DEPRECATION")
-            (context.getSystemService(android.content.Context.VIBRATOR_SERVICE) as? Vibrator)
-                ?.takeIf { it.hasVibrator() }
-        }
-    }
-    val audio = remember(context) {
-        context.getSystemService(AudioManager::class.java)
-    }
-    var lastTickAt by remember { mutableStateOf(0L) }
+    val ticker = rememberSliderTicker()
 
     val maxIndex = (((range.last - range.first).toFloat() / step).roundToInt()).coerceAtLeast(1)
     val index = (((value - range.first).toFloat() / step).roundToInt()).coerceIn(0, maxIndex)
-
-    fun tick() {
-        val now = SystemClock.elapsedRealtime()
-        if (now - lastTickAt < 28L) return
-        lastTickAt = now
-        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-        try {
-            audio?.playSoundEffect(AudioManager.FX_KEY_CLICK, 0.45f)
-        } catch (e: Exception) {
-            // silent mode, ignore
-        }
-        try {
-            vibrator?.vibrate(VibrationEffect.createOneShot(14L, 90))
-        } catch (e: Exception) {
-            // no vibrator, ignore
-        }
-    }
+    // The thumb follows the finger immediately, even before the caller has
+    // stored the new value, so no step is ever swallowed mid-drag.
+    var dragIndex by remember(value) { mutableStateOf(index) }
 
     Column(modifier = modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(2.dp)) {
         Row(verticalAlignment = Alignment.Bottom) {
@@ -480,11 +452,14 @@ fun StepSlider(
             Text(hint, style = MaterialTheme.typography.bodySmall, color = InkFaint)
         }
         Slider(
-            value = index.toFloat(),
+            value = dragIndex.toFloat(),
             onValueChange = { raw ->
                 val next = raw.roundToInt().coerceIn(0, maxIndex)
-                if (next != index) {
-                    tick()
+                if (next != dragIndex) {
+                    // Count the notches so a fast flick still clicks once per step.
+                    val crossed = kotlin.math.abs(next - dragIndex)
+                    dragIndex = next
+                    ticker.tick(crossed)
                     onChange(range.first + next * step)
                 }
             },

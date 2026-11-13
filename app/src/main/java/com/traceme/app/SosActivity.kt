@@ -143,14 +143,15 @@ class SosActivity : ComponentActivity() {
 
                     SoftCard(container = Color(0xFFFBE3E1)) {
                         Text(
-                            "Calling ${settings.emergencyNumber}" +
-                                if (countdown > 0) " in $countdown s" else " now",
+                            "Call ${settings.emergencyNumber}" +
+                                if (countdown > 0) " in $countdown s" else " when you're ready",
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.SemiBold,
                             color = Ink
                         )
                         Text(
-                            "Your contacts receive a text with your last location, the nearest police station and the nearest hospitals.",
+                            "Your contacts have been texted with your location, the nearest police " +
+                                "stations and the hospital/ambulance numbers. Overwatch never dials for you.",
                             style = MaterialTheme.typography.bodySmall,
                             color = InkSoft
                         )

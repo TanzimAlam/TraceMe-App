@@ -2,8 +2,8 @@
 
 Overwatch watches where you are while you walk alone at night. If you stop moving for a
 couple of minutes it asks whether you're okay. If you don't answer, it texts your
-emergency contacts with your last location plus the nearest police station and hospital
-numbers, and calls your emergency number.
+emergency contacts with your last location plus the nearest police station and
+hospital/ambulance numbers. It never dials by itself — calling 999 is always your tap.
 
 Built with Kotlin + Jetpack Compose (Material 3), using the palette from
 [colorhunt.co/palette/ffbe91ffddb0fffce1cfebff](https://colorhunt.co/palette/ffbe91ffddb0fffce1cfebff),
@@ -26,10 +26,13 @@ contact before you can start.
   red light doesn't count as "moving" — but the bus stopping for 2 minutes might, which is
   why the pause button exists).
 
-**Where are you headed?** is asked once, at the top of the home screen — type a place, road or
-landmark, pick a suggestion, and Overwatch saves it with your live position as the start. The
-**Route** tab then shows that destination on the map with your dot moving in real time and the
-distance still to go. No pinning on the map, no second place where a destination is requested.
+**Where are you headed?** is asked once, at the top of the home screen. Type anything specific —
+a house number, a road, a shop, a landmark — and the search resolves real addresses, showing
+house number and locality so two similar hits can be told apart. If the address simply isn't in
+OpenStreetMap, tap **Can't find it? Pin the spot** and a full map opens where you tap the exact
+place; the pin is reverse-geocoded into an address and saved. The **Route** tab then shows that
+destination with your dot moving in real time and the distance still to go. No second place
+where a destination is requested.
 
 **Ask me if I haven't moved for 2 minutes** (a slider in 30-second steps) → the phone rings
 an alarm, vibrates, shows a notification over the lock screen and opens a full-screen
@@ -41,16 +44,22 @@ or waiting for someone? Pause instead of being nagged.
 
 **No answer within 60 s** (slider, 15-second steps) → SOS:
 
-1. Full-screen SOS screen with a big **Call 999 now** button and an 8-second auto-dial
-   countdown.
-2. An SMS to every emergency contact containing your last location as a Google Maps link,
-   the nearest police stations (name, distance, phone) and the nearest hospitals.
-3. The same numbers shown on screen, each with a one-tap call button, so whoever is with
-   you — or the contact you phoned — can arrange help.
+1. An SMS to every emergency contact saying you may be in trouble, with your last location as
+   a Google Maps link, the police stations around you (name, distance, every number) and the
+   hospital/ambulance numbers for that area. The text is built from numbers stored inside the
+   app, so it goes out instantly even with no data connection.
+2. Full-screen SOS screen with the same numbers, each with a one-tap call button, and a large
+   **Call 999 now** button. There is no auto-dial countdown: Overwatch asks a contact, it does
+   not call the police behind your back.
+3. **Get help now** on the home screen does exactly one thing — texts your contacts. Dialling
+   the hotline is a separate, clearly labelled button.
 
-Contacts are managed in **Contacts** (add as many as you like; one is required). The
-hotline and all timings live in **Settings**; every timing is a slider, and each step you
-cross gives a short haptic tap and a click, in both directions. **Activity** keeps a local
+Contacts are managed in **Contacts** (add as many as you like; one is required, and each needs a
+relationship — mother, friend, colleague — because the guard message below uses it). The hotline
+and all timings live in **Settings**; every timing is a slider, and each step you cross is a
+physical notch: a short haptic tap plus a dry click, in both directions. That click is generated
+by the app itself, so it works even when the phone's "touch sounds" and "touch vibration" are
+turned off (which is what made the sliders feel dead before). **Activity** keeps a local
 log of every watch, check-in, pause and SOS.
 
 ---
@@ -134,24 +143,40 @@ each one's status and links to Android's app settings.
 
 ## Nearby police and hospitals
 
-No API key, no backend: Overwatch queries the
-[Overpass API](https://overpass-api.de/) for `amenity=police` (6 km) and `amenity=hospital`
-(8 km) around your position. Three mirrors are tried in turn before giving up.
+Three layers, so the list is instant and never empty:
+
+1. **Bundled directory** (`emergency/EmergencyDirectory.kt`) — the numbers ship inside the APK.
+   It appears the moment you tap, with no network, no key and no server. Nationwide hotlines
+   (999, 199, 16263, 109, 1098, 1090) plus the published control-room numbers: DMP hot number
+   `100`/`9619999`, DMP control room `9575500`/`01817602050`, traffic `9575501`, crime command
+   `9551188`, Police HQ, Highway Police, Tourist Police, RAB, Coast Guard, CMP, plus Dhaka
+   Medical, CMH, Apollo, United, Labaid and the police blood bank.
+2. **Live map top-up** (Overpass, `amenity=police` within 7 km and `amenity=hospital` within
+   9 km, three mirrors). Whatever the map knows that the directory doesn't is appended — useful
+   for the exact thana on your street.
+3. **Merge** — bundled first, mapped after, then nearest-first across both.
+
+Because of layer 1 the old "keeps loading and shows nothing" failure is gone: the network step
+only ever *adds* rows, it can no longer leave you staring at a spinner.
 
 The results are split into two labelled sections, and both are sorted strictly **nearest
-first**, numbered 1, 2, 3… so the closest thana is always the top row:
+first** (nationwide numbers pinned at the top), numbered 1, 2, 3… so the closest thana is always
+the first local row:
 
 - **Police & thana** — drawn in a blue accent with a shield badge and a filled **Hotline 999**
   button on the section header, so the police half of the list is the thing your eye lands on.
   Each row shows the station name, street/area, distance, the operator or officer name where
   OpenStreetMap has one, and *every* number tagged on that station (`phone`, `contact:phone`,
   `contact:mobile`, `emergency:phone`), tappable to call.
-- **Hospitals** — same layout in amber, below the police section.
+- **Hospitals & ambulance** — same layout in amber, below the police section, including the
+  national ambulance lines (999, 16263, 199).
 
-If a station has no number in OpenStreetMap, the row says so and points at the hotline instead
-of inventing a number. This is the honest limit of a keyless data source: OpenStreetMap rarely
-carries an individual thana officer's mobile, so what you get is the station's listed line plus
-the national hotline.
+If a station has no number, the row says so and points at the hotline instead of inventing one.
+This is the honest limit: OpenStreetMap rarely carries an individual thana officer's mobile, and
+many thana landlines are simply not published anywhere machine-readable. The bundled file covers
+the nationwide numbers and the Dhaka/Chattogram control rooms completely; the rest of the
+country is topped up live from the map. **No number in this app is made up** — if a station's
+number is unknown, the row says so.
 
 **The lookup does not wait for the walking watch to have a fix.** It asks the phone for a fresh
 high-accuracy fix itself (falling back to the last known position), and if location is switched
@@ -173,20 +198,50 @@ MAPS_API_KEY=AIza...your-restricted-key
 Then rebuild. The key is passed to the manifest as `com.google.android.geo.API_KEY` and to
 `BuildConfig.MAPS_API_KEY`.
 
+**Status in this build: Google Maps code is wired, the key is not.** The Google Cloud project
+(`cool-ship-514305-n7`) has no billing account linked, and Maps SDK for Android refuses to serve
+tiles to a project without one — a key today would render an empty grey rectangle, which is
+worse than the working OpenStreetMap map. Add a card under **Billing → Link a billing account**,
+create a key restricted to `com.traceme.app` + your SHA-1, drop `MAPS_API_KEY=...` into
+`local.properties` and rebuild: the Google map takes over with no code change.
+
 **Google Maps needs a billing account**, not just a key: enable *Maps SDK for Android* in
 Google Cloud, link a billing account to the project, then create the key (restrict it to the
 Android app with package `com.traceme.app` and your signing SHA-1). Without billing the Google
 map renders empty — which is exactly why the OpenStreetMap fallback exists and why the app
 stays on it until `MAPS_API_KEY` is set.
 
+## Guard: someone tampering with the phone
+
+While a watch is running (foreground *or* background), Overwatch watches for the two things a
+thief does first:
+
+- **all connectivity lost** (data and Wi-Fi switched off; the phone has 5 seconds to fall back
+  to mobile data first), and
+- **the phone being powered off** (the `ACTION_SHUTDOWN` broadcast, plus airplane mode).
+
+Either one sends a guard SMS to every contact, written with *their* relationship: “I think
+someone is trying to take your **friend**'s phone.” It carries the last known location and a
+line telling them to call you, then call 999. SMS travels over the cellular network, so killing
+Wi-Fi and data does not stop it.
+
+**What is not possible, and is not faked here:** Android gives an ordinary app no way to put a
+password prompt in front of the power menu, no way to block a shutdown, and no way to check the
+lock-screen PIN. That needs a device-owner/MDM app or a rooted ROM. So Overwatch cannot "ask for
+the phone's password" — it does the part that *is* possible: it notices and tells your people
+immediately, before the phone goes dark.
+
 ## Honest limitations
 
 - **Debug-signed only.** The APK is signed with the standard Android debug key; install it
   by sideloading. A Play release needs your own keystore and a release build.
-- **Automatic calls are best-effort.** Android blocks background apps from starting
-  activities/calls in some situations. Overwatch tries the call, and always leaves the
-  dialer one tap away on the SOS screen. SMS/`ACTION_CALL` also need the permissions above
-  and an active SIM with credit for SMS.
+- **Nothing dials automatically.** SOS is SMS-only by design; the call to the hotline is
+  always a tap. `SEND_SMS` needs to be granted and the SIM needs credit for SMS.
+- **The power-menu password gate is impossible for a normal app** (see *Guard* above). Real
+  protection against a thief powering the phone off needs Android Enterprise device-owner
+  mode or a rooted device; Overwatch sends the guard SMS instead.
+- **The guard SMS depends on the watch running.** If the OS has killed the foreground service
+  (see battery optimisation below), a shutdown cannot be noticed.
 - **Battery optimisation can kill the watch.** On Xiaomi/Oppo/Vivo/Samsung builds, exclude
   Overwatch from battery optimisation and allow background activity, or the foreground
   service may be frozen. The service shows a persistent notification while it runs.
@@ -199,8 +254,9 @@ stays on it until `MAPS_API_KEY` is set.
   routing, on either provider.
 - **Google Maps is only live once `MAPS_API_KEY` is set** and the project has billing. Out of
   the box the app uses OpenStreetMap, which is free forever but has plainer cartography.
-- **Nearby lookup needs internet** and OpenStreetMap data quality varies by city; phone
-  numbers are often missing in South Asia. The emergency number always works.
+- **The bundled directory is not all 640-odd thanas.** It holds every nationwide hotline and
+  the published metropolitan control rooms; individual thana numbers are added live from
+  OpenStreetMap when they exist. The emergency number always works.
 
 ---
 
@@ -217,10 +273,11 @@ app/src/main/java/com/traceme/app/
 │   ├── TrackingService.kt       foreground service: GPS + sensors + escalation
 │   └── SpotLocation.kt          one-off fix for Nearby Help and the map
 ├── emergency/
-│   ├── EmergencyDispatcher.kt   builds the alert, sends SMS, dials
-│   └── NearbyServices.kt        Overpass lookup, keyless
-├── ui/                          theme, components, screens (incl. MapScreen)
-└── util/                        notifications, permissions, alarm tone
+│   ├── EmergencyDirectory.kt    bundled police/hospital/ambulance numbers
+│   ├── EmergencyDispatcher.kt   builds the alert, sends the SMS, guard alerts
+│   └── NearbyServices.kt        bundled + Overpass merge, nearest first
+├── ui/                          theme, components, screens, MapCanvas, PinPicker
+└── util/                        notifications, permissions, alarm tone, slider ticker
 ```
 
 The application id stays `com.traceme.app` (the source package was not renamed) so that

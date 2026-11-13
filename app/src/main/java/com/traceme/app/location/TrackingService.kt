@@ -3,8 +3,12 @@ package com.traceme.app.location
 import android.app.Notification
 import android.app.PendingIntent
 import android.app.Service
+import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
+import android.net.ConnectivityManager
+import android.net.Network
 import android.content.pm.ServiceInfo
 import android.hardware.Sensor
 import android.hardware.SensorEvent
@@ -71,6 +75,10 @@ class TrackingService : Service() {
     private var motionEnergy = 0f
     private var lastNotificationAt = 0L
 
+    private var networkCallback: ConnectivityManager.NetworkCallback? = null
+    private var shutdownReceiver: BroadcastReceiver? = null
+    private var guardianFired = false
+
     override fun onCreate() {
         super.onCreate()
         repo = Repo.get(this)
@@ -111,6 +119,7 @@ class TrackingService : Service() {
             // ignore
         }
         sensorManager.unregisterListener(sensorListener)
+        stopGuardian()
         AlarmTone.stop()
         releaseWakeLock()
         super.onDestroy()
@@ -127,6 +136,7 @@ class TrackingService : Service() {
         acquireWakeLock()
         requestLocations()
         registerSensors()
+        startGuardian()
         handler.post(ticker)
         repo.log("watch", "Night watch started")
         updateNotification()
@@ -143,6 +153,7 @@ class TrackingService : Service() {
             // ignore
         }
         sensorManager.unregisterListener(sensorListener)
+        stopGuardian()
         AlarmTone.stop()
         releaseWakeLock()
         repo.log("watch", "Night watch ended")
@@ -182,6 +193,119 @@ class TrackingService : Service() {
             // ignore
         }
         wakeLock = null
+    }
+
+    // ---------- guardian: someone tampering with the phone ----------
+
+    /**
+     * While a watch is running, losing all connectivity or a power-off is not a
+     * normal event: it is what someone does before stealing a phone. Both fire
+     * the guard SMS, which travels over the mobile network even with data off.
+     *
+     * A password gate on the power menu is not possible for an ordinary app —
+     * Android gives no API to intercept the power button or verify the lock
+     * screen PIN. What an app *can* do is notice and tell on it, which is this.
+     */
+    private fun startGuardian() {
+        if (networkCallback != null) return
+        guardianFired = false
+
+        val manager = try {
+            getSystemService(ConnectivityManager::class.java)
+        } catch (e: Exception) {
+            null
+        }
+        if (manager != null) {
+            val callback = object : ConnectivityManager.NetworkCallback() {
+                override fun onAvailable(network: Network) {
+                    // Back online (or moved to mobile data): arm the guard again.
+                    guardianFired = false
+                }
+
+                override fun onLost(network: Network) {
+                    // Give the phone a few seconds to fall back to mobile data.
+                    handler.postDelayed(
+                        { checkConnectivity("Data and Wi-Fi were switched off") },
+                        5_000L
+                    )
+                }
+            }
+            try {
+                manager.registerDefaultNetworkCallback(callback)
+                networkCallback = callback
+            } catch (e: Exception) {
+                networkCallback = null
+            }
+        }
+
+        val receiver = object : BroadcastReceiver() {
+            override fun onReceive(receiverContext: Context?, intent: Intent?) {
+                when (intent?.action) {
+                    Intent.ACTION_SHUTDOWN,
+                    "android.intent.action.QUICKBOOT_POWEROFF" ->
+                        fireGuardian("The phone was switched off")
+                    "android.intent.action.AIRPLANE_MODE" ->
+                        fireGuardian("Airplane mode was switched on")
+                }
+            }
+        }
+        try {
+            ContextCompat.registerReceiver(
+                this,
+                receiver,
+                IntentFilter().apply {
+                    addAction(Intent.ACTION_SHUTDOWN)
+                    addAction("android.intent.action.QUICKBOOT_POWEROFF")
+                    addAction("android.intent.action.AIRPLANE_MODE")
+                },
+                ContextCompat.RECEIVER_NOT_EXPORTED
+            )
+            shutdownReceiver = receiver
+        } catch (e: Exception) {
+            shutdownReceiver = null
+        }
+    }
+
+    private fun stopGuardian() {
+        try {
+            networkCallback?.let { callback ->
+                (getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager)
+                    ?.unregisterNetworkCallback(callback)
+            }
+        } catch (e: Exception) {
+            // ignore
+        }
+        networkCallback = null
+        try {
+            shutdownReceiver?.let { unregisterReceiver(it) }
+        } catch (e: Exception) {
+            // ignore
+        }
+        shutdownReceiver = null
+    }
+
+    private fun checkConnectivity(reason: String) {
+        if (!running) return
+        val manager = try {
+            getSystemService(ConnectivityManager::class.java)
+        } catch (e: Exception) {
+            null
+        }
+        if (manager?.activeNetwork == null) fireGuardian(reason)
+    }
+
+    private fun fireGuardian(reason: String) {
+        if (!running || guardianFired) return
+        if (state == WatchState.IDLE) return
+        guardianFired = true
+        repo.log("guard", "Guard alert · $reason")
+        EmergencyDispatcher.guardianAlert(
+            this,
+            reason,
+            if (hasFix) latitude else null,
+            if (hasFix) longitude else null
+        )
+        updateNotification()
     }
 
     // ---------- inputs ----------

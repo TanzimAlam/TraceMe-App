@@ -235,6 +235,7 @@ class Repo private constructor(context: Context) {
                     put("detail", place.detail)
                     put("area", place.area)
                     put("altPhone", place.altPhone)
+                    put("national", place.national)
                 }
             )
         }
@@ -251,7 +252,8 @@ class Repo private constructor(context: Context) {
                 distanceMeters = item.optInt("distanceMeters"),
                 detail = item.optString("detail"),
                 area = item.optString("area"),
-                altPhone = item.optString("altPhone")
+                altPhone = item.optString("altPhone"),
+                national = item.optBoolean("national", false)
             )
         }
     }
